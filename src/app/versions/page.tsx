@@ -86,9 +86,14 @@ export default function VersionsPage() {
               <div className="text-right">
                 <div className="text-2xl font-mono text-white">v{data.dashboard.current}</div>
                 {data.dashboard.updateAvailable && (
-                  <div className="text-sm text-orange-400">
+                  <a 
+                    href={`https://github.com/skunkceo/superclaw-dashboard/releases/tag/v${data.dashboard.latest}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-orange-400 hover:text-orange-300 hover:underline"
+                  >
                     v{data.dashboard.latest} available
-                  </div>
+                  </a>
                 )}
               </div>
             </div>
@@ -155,9 +160,14 @@ export default function VersionsPage() {
               <div className="text-right">
                 <div className="text-2xl font-mono text-white">{data.openclaw.current}</div>
                 {(data.openclaw.updateAvailable || data.openclaw.isLegacy) && (
-                  <div className="text-sm text-orange-400">
+                  <a 
+                    href={`https://github.com/openclaw/openclaw/releases/tag/v${data.openclaw.latest}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-orange-400 hover:text-orange-300 hover:underline"
+                  >
                     v{data.openclaw.latest} available
-                  </div>
+                  </a>
                 )}
               </div>
             </div>
