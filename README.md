@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SuperClaw Dashboard
 
-## Getting Started
+A modern dashboard for monitoring and managing your AI companion powered by [Clawdbot](https://github.com/clawdbot/clawdbot) or OpenClaw.
 
-First, run the development server:
+## Features
+
+- **Real-time Agent Monitoring** — See main agent status and active sub-agents
+- **Token Usage Tracking** — Monitor costs across models (Opus, Sonnet, Haiku)
+- **Work Queue Management** — View backlog, in-progress tasks, and spawn agents
+- **Cron Job Management** — Schedule and manage recurring tasks
+- **Chat Interface** — Direct conversation with your AI
+- **Workspace Browser** — View and edit workspace files (AGENTS.md, SOUL.md, etc.)
+- **User Management** — Role-based access control (admin, edit, view)
+- **Update Notifications** — Get notified when new versions are available
+
+## Installation
+
+### Via SuperClaw CLI (Recommended)
+
+```bash
+npx @skunkceo/superclaw init
+```
+
+This will set up a complete workspace including the dashboard.
+
+### Manual Installation
+
+```bash
+npm install @skunkceo/superclaw-dashboard
+```
+
+## Configuration
+
+The dashboard connects to your local Clawdbot gateway. It reads configuration from:
+
+- `~/.clawdbot/clawdbot.json` — Gateway port and auth token
+- Workspace files — AGENTS.md, SOUL.md, USER.md, etc.
+
+No API keys or secrets are stored in the dashboard — all sensitive config comes from your local Clawdbot installation.
+
+## Running
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Production
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+npm run start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Or use PM2:
 
-## Learn More
+```bash
+pm2 start npm --name "superclaw-dashboard" -- start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## User Management
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Create your first admin user:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+superclaw setup
+```
 
-## Deploy on Vercel
+Add additional users:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+superclaw setup user add user@example.com --role edit
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Roles:
+- **admin** — Full access, can manage users
+- **edit** — Can edit workspace files and chat
+- **view** — Read-only access to dashboard
+
+## Updating
+
+The dashboard will show a notification banner when updates are available.
+
+```bash
+superclaw update
+```
+
+Or check for updates without installing:
+
+```bash
+superclaw update --check
+```
+
+## Tech Stack
+
+- Next.js 16
+- React 19
+- Tailwind CSS 4
+- SQLite (better-sqlite3)
+- TypeScript
+
+## Requirements
+
+- Node.js 18+
+- Clawdbot or OpenClaw running locally
+
+## License
+
+MIT
+
+## Links
+
+- [SuperClaw CLI](https://github.com/skunkceo/superclaw-cli)
+- [Clawdbot](https://github.com/clawdbot/clawdbot)
+- [Documentation](https://docs.clawd.bot)
