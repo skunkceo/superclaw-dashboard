@@ -1,6 +1,6 @@
 # SuperClaw Dashboard
 
-A modern dashboard for monitoring and managing your AI companion powered by [Clawdbot](https://github.com/clawdbot/clawdbot) or OpenClaw.
+A modern dashboard for monitoring and managing your AI companion powered by [OpenClaw](https://github.com/openclaw/openclaw).
 
 ## Features
 
@@ -31,12 +31,12 @@ npm install @skunkceo/superclaw-dashboard
 
 ## Configuration
 
-The dashboard connects to your local Clawdbot gateway. It reads configuration from:
+The dashboard connects to your local OpenClaw gateway. It reads configuration from:
 
-- `~/.clawdbot/clawdbot.json` — Gateway port and auth token
+- `~/.openclaw/openclaw.json` — Gateway port and auth token
 - Workspace files — AGENTS.md, SOUL.md, USER.md, etc.
 
-No API keys or secrets are stored in the dashboard — all sensitive config comes from your local Clawdbot installation.
+No API keys or secrets are stored in the dashboard — all sensitive config comes from your local OpenClaw installation.
 
 ## Running
 
@@ -103,7 +103,7 @@ superclaw update --check
 ## Requirements
 
 - Node.js 18+
-- Clawdbot or OpenClaw running locally
+- OpenClaw or OpenClaw running locally
 
 ## License
 
@@ -112,5 +112,5 @@ MIT
 ## Links
 
 - [SuperClaw CLI](https://github.com/skunkceo/superclaw-cli)
-- [Clawdbot](https://github.com/clawdbot/clawdbot)
+- [OpenClaw](https://github.com/openclaw/openclaw)
 - [Documentation](https://docs.clawd.bot)
