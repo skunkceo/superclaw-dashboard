@@ -39,6 +39,7 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
     { href: '/scheduled', label: 'Scheduled', icon: '📅' },
     { href: '/models', label: 'Models', icon: '🧠' },
     ...(hasRole('edit') ? [{ href: '/workspace', label: 'Workspace', icon: '📁' }] : []),
+    { href: '/versions', label: 'Versions', icon: '📦' },
   ];
 
   const isActive = (href: string) => {
@@ -90,7 +91,7 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
           <Link href="/" className="flex items-center gap-2.5">
             <LobsterLogo className="w-8 h-8" />
             <span className="text-lg font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-              Superclaw
+              SuperClaw
             </span>
           </Link>
 

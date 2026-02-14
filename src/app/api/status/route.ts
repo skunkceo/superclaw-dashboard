@@ -129,6 +129,73 @@ async function fetchActiveSessions(port: number, token: string) {
   }
 }
 
+// Get recent activity from main session
+function getRecentActivity(sessionsDir: string): { lastActive: string; recentMessages: number; status: 'active' | 'idle' } {
+  if (!existsSync(sessionsDir)) {
+    return { lastActive: 'Unknown', recentMessages: 0, status: 'idle' };
+  }
+  
+  try {
+    // Find the most recently modified .jsonl file (excluding deleted and sub-agent sessions)
+    const files = readdirSync(sessionsDir)
+      .filter(f => f.endsWith('.jsonl') && !f.includes('.deleted.') && !f.includes('-topic-'))
+      .map(f => ({
+        name: f,
+        path: join(sessionsDir, f),
+        mtime: require('fs').statSync(join(sessionsDir, f)).mtimeMs
+      }))
+      .sort((a, b) => b.mtime - a.mtime);
+    
+    if (files.length === 0) {
+      return { lastActive: 'Unknown', recentMessages: 0, status: 'idle' };
+    }
+    
+    const mainSessionPath = files[0].path;
+    const content = readFileSync(mainSessionPath, 'utf8');
+    const lines = content.trim().split('\n').filter(Boolean);
+    
+    // Count messages in last hour
+    const hourAgo = Date.now() - (60 * 60 * 1000);
+    let recentMessages = 0;
+    let lastTimestamp = 0;
+    
+    // Read last 100 lines for efficiency
+    const recentLines = lines.slice(-100);
+    for (const line of recentLines) {
+      try {
+        const msg = JSON.parse(line);
+        if (msg.timestamp) {
+          const ts = new Date(msg.timestamp).getTime();
+          if (ts > lastTimestamp) lastTimestamp = ts;
+          if (ts > hourAgo) recentMessages++;
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    // Format last active time
+    let lastActive = 'Unknown';
+    if (lastTimestamp > 0) {
+      const diff = Date.now() - lastTimestamp;
+      const mins = Math.floor(diff / 60000);
+      const hours = Math.floor(mins / 60);
+      
+      if (mins < 1) lastActive = 'Just now';
+      else if (mins < 60) lastActive = `${mins}m ago`;
+      else if (hours < 24) lastActive = `${hours}h ago`;
+      else lastActive = `${Math.floor(hours / 24)}d ago`;
+    }
+    
+    // Consider active if message in last 5 minutes
+    const status = (Date.now() - lastTimestamp < 5 * 60 * 1000) ? 'active' : 'idle';
+    
+    return { lastActive, recentMessages, status };
+  } catch {
+    return { lastActive: 'Unknown', recentMessages: 0, status: 'idle' };
+  }
+}
+
 // Get sessions directory
 function getSessionsDir(configPath: string): string {
   // Default sessions directory based on config location
@@ -221,12 +288,17 @@ export async function GET() {
 
   // Fetch active sessions from gateway
   const activeSessions = await fetchActiveSessions(gatewayPort, gatewayToken);
-  const subAgents = activeSessions.map((s: { key?: string; displayName?: string; model?: string; sessionId?: string }) => ({
-    id: s.sessionId || s.key || 'unknown',
-    task: s.displayName || s.key || 'Unknown task',
-    model: s.model || 'unknown',
-    status: 'active',
-  }));
+  const subAgents = activeSessions
+    .filter((s: { key?: string }) => s.key !== 'main') // Exclude main session from sub-agents list
+    .map((s: { key?: string; displayName?: string; model?: string; sessionId?: string }) => ({
+      id: s.sessionId || s.key || 'unknown',
+      task: s.displayName || s.key || 'Unknown task',
+      model: s.model || 'unknown',
+      status: 'active',
+    }));
+  
+  // Get main session activity
+  const mainActivity = getRecentActivity(sessionsDir);
 
   // Format token numbers
   const formatTokens = (n: number) => Math.round(n);
@@ -268,6 +340,11 @@ export async function GET() {
       active: subAgents.length,
       completed: sessionCounts.completed,
       subAgents,
+      mainSession: {
+        status: mainActivity.status,
+        lastActive: mainActivity.lastActive,
+        recentMessages: mainActivity.recentMessages,
+      },
     },
     skills: getAvailableSkills(),
   });

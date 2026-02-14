@@ -4,7 +4,7 @@ import { AuthWrapper } from "@/components/AuthWrapper";
 import { ConditionalHeader } from "@/components/ConditionalHeader";
 
 export const metadata: Metadata = {
-  title: "Superclaw Dashboard",
+  title: "SuperClaw Dashboard",
   description: "Monitor and manage your OpenClaw installation",
 };
 

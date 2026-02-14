@@ -1,0 +1,237 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface VersionData {
+  dashboard: {
+    current: string;
+    latest: string;
+    updateAvailable: boolean;
+    updateCommand: string;
+    changelog: string | null;
+  };
+  openclaw: {
+    current: string;
+    latest: string;
+    updateAvailable: boolean;
+    command: string;
+    updateCommand: string;
+    isLegacy: boolean;
+    changelog: string | null;
+  };
+  node: {
+    version: string;
+  };
+  checkedAt: string;
+}
+
+export default function VersionsPage() {
+  const [data, setData] = useState<VersionData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/versions')
+      .then(res => res.json())
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const copyCommand = (cmd: string, id: string) => {
+    navigator.clipboard.writeText(cmd);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="text-zinc-400">Checking versions...</div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="text-red-400">Failed to load version information</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-zinc-950">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-2xl font-bold text-white mb-2">Versions</h1>
+        <p className="text-zinc-400 mb-8">Check for updates and manage your installation</p>
+
+        <div className="space-y-6">
+          {/* Dashboard Version */}
+          <div className={`bg-zinc-900 border rounded-xl p-6 ${
+            data.dashboard.updateAvailable ? 'border-orange-500/50' : 'border-zinc-800'
+          }`}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  SuperClaw Dashboard
+                  {data.dashboard.updateAvailable && (
+                    <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded-full">
+                      Update available
+                    </span>
+                  )}
+                </h2>
+                <p className="text-zinc-500 text-sm mt-1">Web dashboard UI</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-mono text-white">v{data.dashboard.current}</div>
+                {data.dashboard.updateAvailable && (
+                  <div className="text-sm text-orange-400">
+                    v{data.dashboard.latest} available
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {data.dashboard.updateAvailable && (
+              <div className="mt-4 pt-4 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <code className="bg-zinc-800 px-3 py-2 rounded-lg text-sm text-zinc-300 font-mono">
+                    {data.dashboard.updateCommand}
+                  </code>
+                  <div className="flex items-center gap-2">
+                    {data.dashboard.changelog && (
+                      <a
+                        href={data.dashboard.changelog}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-orange-400 hover:text-orange-300"
+                      >
+                        Changelog
+                      </a>
+                    )}
+                    <button
+                      onClick={() => copyCommand(data.dashboard.updateCommand, 'dashboard')}
+                      className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-lg"
+                    >
+                      {copied === 'dashboard' ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!data.dashboard.updateAvailable && (
+              <div className="mt-4 pt-4 border-t border-zinc-800 flex items-center gap-2 text-green-400">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm">You're on the latest version</span>
+              </div>
+            )}
+          </div>
+
+          {/* OpenClaw Version */}
+          <div className={`bg-zinc-900 border rounded-xl p-6 ${
+            data.openclaw.updateAvailable || data.openclaw.isLegacy ? 'border-orange-500/50' : 'border-zinc-800'
+          }`}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  OpenClaw
+                  {data.openclaw.isLegacy && (
+                    <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
+                      Legacy install (clawdbot)
+                    </span>
+                  )}
+                  {data.openclaw.updateAvailable && !data.openclaw.isLegacy && (
+                    <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded-full">
+                      Update available
+                    </span>
+                  )}
+                </h2>
+                <p className="text-zinc-500 text-sm mt-1">AI gateway and agent runtime</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-mono text-white">{data.openclaw.current}</div>
+                {(data.openclaw.updateAvailable || data.openclaw.isLegacy) && (
+                  <div className="text-sm text-orange-400">
+                    v{data.openclaw.latest} available
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {data.openclaw.isLegacy && (
+              <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <p className="text-yellow-400 text-sm">
+                  You're running the legacy <code className="bg-zinc-800 px-1 rounded">clawdbot</code> package. 
+                  Migrate to <code className="bg-zinc-800 px-1 rounded">openclaw</code> for the latest features.
+                </p>
+              </div>
+            )}
+
+            {(data.openclaw.updateAvailable || data.openclaw.isLegacy) && (
+              <div className="mt-4 pt-4 border-t border-zinc-800">
+                <div className="flex items-center justify-between gap-4">
+                  <code className="bg-zinc-800 px-3 py-2 rounded-lg text-sm text-zinc-300 font-mono flex-1 overflow-x-auto">
+                    {data.openclaw.updateCommand}
+                  </code>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {data.openclaw.changelog && (
+                      <a
+                        href={data.openclaw.changelog}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-orange-400 hover:text-orange-300"
+                      >
+                        Changelog
+                      </a>
+                    )}
+                    <button
+                      onClick={() => copyCommand(data.openclaw.updateCommand, 'openclaw')}
+                      className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-lg"
+                    >
+                      {copied === 'openclaw' ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+                {data.openclaw.isLegacy && (
+                  <p className="mt-3 text-zinc-500 text-xs">
+                    After updating, restart the gateway with: <code className="bg-zinc-800 px-1 rounded">openclaw gateway start</code>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!data.openclaw.updateAvailable && !data.openclaw.isLegacy && (
+              <div className="mt-4 pt-4 border-t border-zinc-800 flex items-center gap-2 text-green-400">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm">You're on the latest version</span>
+              </div>
+            )}
+          </div>
+
+          {/* System Info */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">System</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-zinc-500 text-sm">Node.js</div>
+                <div className="text-white font-mono">{data.node.version}</div>
+              </div>
+              <div>
+                <div className="text-zinc-500 text-sm">Last checked</div>
+                <div className="text-white font-mono text-sm">
+                  {new Date(data.checkedAt).toLocaleTimeString()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

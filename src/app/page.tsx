@@ -7,7 +7,6 @@ import { SetupChecklist } from '@/components/SetupChecklist';
 import { ActiveTasks } from '@/components/ActiveTasks';
 import { SkillsPanel } from '@/components/SkillsPanel';
 import { LobsterLogo } from '@/components/LobsterLogo';
-import { Header } from '@/components/Header';
 
 interface ModelUsage {
   input: number;
@@ -56,6 +55,11 @@ interface DashboardData {
       model: string;
       status: string;
     }>;
+    mainSession?: {
+      status: 'active' | 'idle';
+      lastActive: string;
+      recentMessages: number;
+    };
   };
   skills: Array<{
     name: string;
@@ -111,7 +115,6 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
-      <Header healthStatus={data.health.status} />
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
