@@ -204,6 +204,16 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
                       Settings
                     </Link>
                     <Link
+                      href="/upgrade"
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-orange-400 hover:bg-zinc-700/50"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Upgrade to Pro
+                    </Link>
+                    <Link
                       href="/errors"
                       className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50"
                       onClick={() => setShowUserMenu(false)}

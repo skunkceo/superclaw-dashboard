@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { LobsterLogo } from '@/components/LobsterLogo';
 
 interface TokenStats {
   today: number;
@@ -30,10 +31,22 @@ export default function TokensPage() {
   const [router, setRouter] = useState<RouterStatus>({ enabled: false, installed: false });
   const [loading, setLoading] = useState(true);
   const [showRouterHelp, setShowRouterHelp] = useState(false);
+  const [hasProAccess, setHasProAccess] = useState(false);
 
   useEffect(() => {
+    checkLicense();
     fetchData();
   }, []);
+
+  const checkLicense = async () => {
+    try {
+      const res = await fetch('/api/license/status');
+      const data = await res.json();
+      setHasProAccess(data.hasLicense && data.tier === 'pro');
+    } catch (error) {
+      console.error('License check failed:', error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -78,6 +91,49 @@ export default function TokensPage() {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
         <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!hasProAccess) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-8">
+        <div className="max-w-2xl text-center">
+          <LobsterLogo className="w-20 h-20 mx-auto mb-6 opacity-50" />
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+            Pro Feature
+          </h1>
+          <p className="text-xl text-zinc-400 mb-8">
+            Advanced analytics and smart model routing are available in SuperClaw Pro.
+          </p>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-8">
+            <h3 className="font-semibold text-lg mb-3 text-white">What you'll get:</h3>
+            <ul className="text-left space-y-2 text-zinc-400">
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Token usage analytics over time</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Smart model routing to optimize costs</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Cost tracking by model</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Budget alerts and projections</span>
+              </li>
+            </ul>
+          </div>
+          <a
+            href="/upgrade"
+            className="inline-block px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 font-semibold text-white text-lg"
+          >
+            Upgrade to Pro
+          </a>
+        </div>
       </div>
     );
   }
