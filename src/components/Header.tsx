@@ -48,10 +48,8 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
 
   const navItems = [
     { href: '/', label: 'Dashboard' },
-    { href: '/command', label: 'Command' },
-    { href: '/tasks', label: 'Tasks' },
+    { href: '/command', label: 'Tasks' },
     { href: '/agents', label: 'Agents' },
-    { href: '/scheduled', label: 'Scheduled' },
     { href: '/models', label: 'Models' },
     { href: '/errors', label: 'Errors' },
     ...(hasRole('edit') ? [{ href: '/workspace', label: 'Workspace' }] : []),

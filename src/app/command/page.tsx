@@ -63,6 +63,8 @@ export default function CommandPage() {
         setTasks(data.tasks || []);
         setRecurring(data.recurring || []);
         setReports(data.reports || []);
+      } else {
+        console.error('Failed to load command data:', res.status, await res.text());
       }
     } catch (err) {
       console.error('Failed to load command data:', err);
