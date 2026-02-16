@@ -187,7 +187,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-screen bg-zinc-950 text-white flex overflow-hidden">
+    <div className="h-[calc(100vh-3.5rem)] bg-zinc-950 text-white flex overflow-hidden">
       {/* Sidebar - Chat History */}
       <div className={`${sidebarOpen ? 'w-80' : 'w-0'} border-r border-zinc-800 bg-zinc-900/50 flex-shrink-0 transition-all duration-300 overflow-hidden flex flex-col h-full relative`}>
         <div className="p-4 border-b border-zinc-800 flex-shrink-0">
