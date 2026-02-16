@@ -47,12 +47,15 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
   }, []);
 
   const navItems = [
-    { href: '/', label: 'Dashboard', icon: '📊' },
-    { href: '/agents', label: 'Agents', icon: '🤖' },
-    { href: '/scheduled', label: 'Scheduled', icon: '📅' },
-    { href: '/models', label: 'Models', icon: '🧠' },
-    ...(hasRole('edit') ? [{ href: '/workspace', label: 'Workspace', icon: '📁' }] : []),
-    { href: '/versions', label: 'Versions', icon: '📦' },
+    { href: '/', label: 'Dashboard' },
+    { href: '/command', label: 'Command' },
+    { href: '/tasks', label: 'Tasks' },
+    { href: '/agents', label: 'Agents' },
+    { href: '/scheduled', label: 'Scheduled' },
+    { href: '/models', label: 'Models' },
+    { href: '/errors', label: 'Errors' },
+    ...(hasRole('edit') ? [{ href: '/workspace', label: 'Workspace' }] : []),
+    { href: '/versions', label: 'Versions' },
   ];
 
   const isActive = (href: string) => {
@@ -199,14 +202,20 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
                         className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50"
                         onClick={() => setShowUserMenu(false)}
                       >
-                        <span>👥</span> Manage Users
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        Manage Users
                       </Link>
                     )}
                     <button
                       onClick={logout}
                       className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-zinc-700/50"
                     >
-                      <span>🚪</span> Sign out
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Sign out
                     </button>
                   </div>
                 </>
@@ -238,13 +247,12 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
                   key={item.href}
                   href={item.href}
                   onClick={() => setShowMobileMenu(false)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive(item.href)
                       ? 'bg-zinc-800 text-white'
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
                   }`}
                 >
-                  <span>{item.icon}</span>
                   {item.label}
                 </Link>
               ))}

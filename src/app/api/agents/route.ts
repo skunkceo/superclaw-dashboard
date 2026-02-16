@@ -8,6 +8,7 @@ const MAX_CONCURRENT_AGENTS = 3;
 
 function getGatewayConfig() {
   const configPaths = [
+    '/root/.openclaw/openclaw.json',
     '/root/.clawdbot/clawdbot.json',
     join(process.env.HOME || '', '.clawdbot/clawdbot.json'),
   ];
@@ -182,7 +183,7 @@ export async function GET() {
       }
     }
 
-    // Get active sub-agent sessions from gateway
+    // Get active sub-agent sessions from sessions.json
     let activeSessions: Array<{
       sessionKey: string;
       label?: string;
@@ -193,46 +194,32 @@ export async function GET() {
       lastMessage?: string;
     }> = [];
 
-    // Reuse gatewayConfig from above
-    if (gatewayConfig) {
-      try {
-        const response = await fetch(
-          `http://127.0.0.1:${gatewayConfig.port}/sessions?kinds=spawn`,
-          {
-            headers: {
-              'Authorization': `Bearer ${gatewayConfig.token}`,
-            },
+    const sessionsDirs = [
+      '/root/.openclaw/agents/main/sessions',
+      '/root/.clawdbot/agents/main/sessions',
+    ];
+    for (const sessDir of sessionsDirs) {
+      const sessFile = join(sessDir, 'sessions.json');
+      if (existsSync(sessFile)) {
+        try {
+          const sessData = JSON.parse(readFileSync(sessFile, 'utf8'));
+          const now = Date.now();
+          for (const [key, val] of Object.entries(sessData)) {
+            const v = val as any;
+            if (key.includes('subagent:') || key.includes('spawn:')) {
+              const age = now - (v.updatedAt || 0);
+              if (age < 60 * 60 * 1000) { // active in last hour
+                activeSessions.push({
+                  sessionKey: key,
+                  label: key.split(':').pop(),
+                  status: age < 5 * 60 * 1000 ? 'running' : 'completed',
+                  startedAt: v.createdAt ? new Date(v.createdAt).toISOString() : undefined,
+                });
+              }
+            }
           }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data.sessions)) {
-            activeSessions = data.sessions
-              .filter((s: { status?: string }) => s.status === 'active' || s.status === 'running')
-              .map((s: { 
-                sessionKey?: string; 
-                key?: string;
-                label?: string; 
-                task?: string; 
-                model?: string;
-                status?: string;
-                startedAt?: string;
-                createdAt?: string;
-                lastMessage?: { text?: string };
-              }) => ({
-                sessionKey: s.sessionKey || s.key || 'unknown',
-                label: s.label,
-                task: s.task,
-                model: s.model,
-                status: 'running' as const,
-                startedAt: s.startedAt || s.createdAt,
-                lastMessage: s.lastMessage?.text,
-              }));
-          }
-        }
-      } catch (e) {
-        console.error('Error fetching gateway sessions:', e);
+        } catch {}
+        break;
       }
     }
 

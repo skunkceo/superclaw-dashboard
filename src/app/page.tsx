@@ -54,12 +54,44 @@ interface DashboardData {
       task: string;
       model: string;
       status: string;
+      lastActive?: string;
+      messages?: Array<{
+        role: string;
+        content: string;
+        timestamp: string;
+      }>;
+    }>;
+    allSessions?: Array<{
+      key: string;
+      sessionId?: string;
+      displayName: string;
+      status: 'active' | 'idle' | 'done';
+      lastActive: string;
+      model: string;
+      totalTokens: number;
+      messages: Array<{
+        role: string;
+        content: string;
+        timestamp: string;
+      }>;
     }>;
     mainSession?: {
-      status: 'active' | 'idle';
+      status: 'active' | 'idle' | 'done';
       lastActive: string;
       recentMessages: number;
+      currentTask?: string | null;
+      model?: string;
+      totalTokens?: number;
     };
+    activityFeed?: Array<{
+      type: string;
+      sessionKey: string;
+      sessionName: string;
+      role: string;
+      content: string;
+      timestamp: string;
+      model: string;
+    }>;
   };
   skills: Array<{
     name: string;
@@ -88,7 +120,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 5000); // Poll every 5 seconds for real-time updates
     return () => clearInterval(interval);
   }, []);
 

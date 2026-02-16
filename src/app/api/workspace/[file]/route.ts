@@ -6,8 +6,11 @@ import { getCurrentUser, hasRole } from '@/lib/auth';
 // Read workspace path from clawdbot config
 async function getWorkspacePath() {
   try {
-    const configPath = '/root/.clawdbot/clawdbot.json';
-    const configContent = await readFile(configPath, 'utf-8');
+    const configPaths = ['/root/.openclaw/openclaw.json', '/root/.clawdbot/clawdbot.json'];
+    let configContent = '';
+    for (const p of configPaths) {
+      try { configContent = await readFile(p, 'utf-8'); break; } catch { continue; }
+    }
     const config = JSON.parse(configContent);
     return config.agents?.defaults?.workspace || '/root/clawd';
   } catch {

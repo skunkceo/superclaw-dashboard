@@ -27,15 +27,36 @@ interface TokenProps {
 }
 
 const modelLabels: Record<string, string> = {
-  'claude-opus-4-5': 'Opus 4.5',
-  'claude-opus-4-20250514': 'Opus 4',
-  'claude-sonnet-4-20250514': 'Sonnet 4',
-  'claude-sonnet-4-5-20250514': 'Sonnet 4.5',
-  'claude-haiku-3-5-20241022': 'Haiku 3.5',
+  // Normalized model names (from usage-parser)
+  'claude-opus-4': 'Claude 3 Opus',
+  'claude-sonnet-4': 'Claude 3.7 Sonnet',
+  'claude-haiku-3.5': 'Claude 3.5 Haiku',
+  // Legacy/raw model names (for backwards compatibility)
+  'claude-opus-4-5-20250514': 'Claude 3 Opus',
+  'claude-opus-4-20250514': 'Claude 3 Opus',
+  'claude-opus-4-6': 'Claude 3 Opus',
+  'claude-sonnet-4-20250514': 'Claude 3.7 Sonnet',
+  'claude-sonnet-4-5-20250514': 'Claude 3.7 Sonnet',
+  'claude-sonnet-4-5': 'Claude 3.7 Sonnet',
+  'claude-haiku-3-5-20241022': 'Claude 3.5 Haiku',
   'gpt-4o': 'GPT-4o',
   'gpt-4o-mini': 'GPT-4o Mini',
   'unknown': 'Unknown',
 };
+
+function getModelLabel(model: string): string {
+  if (modelLabels[model]) return modelLabels[model];
+  // Try without provider prefix
+  const bare = model.replace('anthropic/', '').replace('openai/', '');
+  if (modelLabels[bare]) return modelLabels[bare];
+  // Build a readable name: claude-sonnet-4-20250514 → Claude Sonnet 4
+  const clean = bare
+    .replace(/-\d{8}$/, '') // strip date suffix
+    .split('-')
+    .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(' ');
+  return clean;
+}
 
 export function TokenUsage({ tokens, subscription }: TokenProps) {
   const formatNumber = (num: number) => {
@@ -52,6 +73,7 @@ export function TokenUsage({ tokens, subscription }: TokenProps) {
   // Get model breakdown for this month
   const monthModels = tokens.byModel?.thisMonth || {};
   const sortedModels = Object.entries(monthModels)
+    .filter(([, u]) => ((u as any).total || (u.input + u.output)) > 0)
     .sort((a, b) => b[1].cost - a[1].cost)
     .slice(0, 4);
 
@@ -112,10 +134,10 @@ export function TokenUsage({ tokens, subscription }: TokenProps) {
           <h3 className="text-sm font-medium text-zinc-400 mb-3">Usage by Model (Month)</h3>
           <div className="space-y-2">
             {sortedModels.map(([model, usage]) => {
-              const label = modelLabels[model] || model.split('-').slice(0, 2).join(' ');
-              const totalTokens = usage.input + usage.output;
-              const maxTokens = Math.max(...sortedModels.map(([, u]) => u.input + u.output));
-              const widthPercent = (totalTokens / maxTokens) * 100;
+              const label = getModelLabel(model);
+              const totalTokens = (usage as any).total || (usage.input + usage.output);
+              // Calculate as percentage of thisMonth total tokens (not just max of shown models)
+              const widthPercent = tokens.thisMonth > 0 ? (totalTokens / tokens.thisMonth) * 100 : 0;
               
               return (
                 <div key={model} className="relative">

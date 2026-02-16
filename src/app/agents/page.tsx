@@ -1,64 +1,111 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 
-interface MainAgent {
-  status: 'idle' | 'processing' | 'thinking';
-  activity: string;
-  lastActive: number;
-  model?: string;
-  sessionTokens?: number;
-}
+// Lobster SVG path for colored icons
+const LobsterPath = () => (
+  <path
+    d="M50 10c-8 0-15 3-20 8l-5-3c-2-1-4 0-5 2s0 4 2 5l5 3c-2 5-2 11 0 16l-5 3c-2 1-3 3-2 5s3 3 5 2l5-3c5 5 12 8 20 8s15-3 20-8l5 3c2 1 4 0 5-2s0-4-2-5l-5-3c2-5 2-11 0-16l5-3c2-1 3-3 2-5s-3-3-5-2l-5 3c-5-5-12-8-20-8zm-8 15c0-4 4-8 8-8s8 4 8 8-4 8-8 8-8-4-8-8zm16 0c0-2 2-4 4-4s4 2 4 4-2 4-4 4-4-2-4-4zm-24 0c0-2 2-4 4-4s4 2 4 4-2 4-4 4-4-2-4-4z"
+  />
+);
 
-interface SubAgent {
-  sessionKey: string;
-  label?: string;
-  task?: string;
-  model?: string;
-  status: 'running' | 'completed' | 'error';
-  startedAt?: string;
-  lastMessage?: string;
-}
-
-interface QueueItem {
-  id: number;
-  title: string;
-  priority: string;
-  product?: string;
-  area?: string;
-  status: string;
+interface AgentDef {
+  id: string;
+  name: string;
+  description: string | null;
+  soul: string | null;
+  model: string;
+  skills: string;
+  tools: string;
+  color: string;
+  icon: string;
+  memory_dir: string | null;
+  system_prompt: string | null;
+  thinking: string;
+  spawn_count: number;
   created_at: number;
 }
 
-interface OperationsData {
-  mainAgent: MainAgent;
-  queue: {
-    backlog: number;
-    inProgress: number;
-    items: QueueItem[];
-  };
-  agents: {
-    active: number;
-    maxConcurrent: number;
-    sessions: SubAgent[];
-  };
-  recommendations: string[];
+interface SessionInfo {
+  key: string;
+  sessionId?: string;
+  displayName: string;
+  status: 'active' | 'idle' | 'done';
+  lastActive: string;
+  model: string;
+  totalTokens: number;
+  messages: Array<{ role: string; content: string; timestamp: string }>;
+}
+
+const modelNames: Record<string, string> = {
+  'claude-opus-4-20250514': 'Opus 4',
+  'claude-opus-4-6': 'Opus 4',
+  'claude-sonnet-4-20250514': 'Sonnet 4',
+  'claude-sonnet-4-5': 'Sonnet 4',
+  'claude-sonnet-4-5-20250514': 'Sonnet 4',
+  'claude-haiku-3-5-20241022': 'Haiku 3.5',
+};
+
+const iconMap: Record<string, string> = {
+  bot: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z',
+  porter: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4',
+  code: 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4',
+  megaphone: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z',
+  shield: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+  pencil: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+  chart: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  support: 'M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z',
+};
+
+function formatModel(raw: string): string {
+  const bare = raw.replace('anthropic/', '');
+  return modelNames[bare] || bare;
+}
+
+function formatTimeAgo(ts: number | string): string {
+  const t = typeof ts === 'string' ? new Date(ts).getTime() : ts;
+  const diff = Date.now() - t;
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
 }
 
 export default function AgentsPage() {
-  const [data, setData] = useState<OperationsData | null>(null);
+  const [agents, setAgents] = useState<AgentDef[]>([]);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [spawning, setSpawning] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editAgent, setEditAgent] = useState<AgentDef | null>(null);
+  const [spawning, setSpawning] = useState<string | null>(null);
+  const [spawnTask, setSpawnTask] = useState('');
+  const [spawnTarget, setSpawnTarget] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  // Form state
+  const [form, setForm] = useState({
+    name: '', description: '', soul: '', model: 'claude-sonnet-4-20250514',
+    icon: 'bot', color: '#f97316', thinking: 'low', system_prompt: '',
+    skills: '', tools: '',
+  });
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/agents');
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
+      const [agentsRes, statusRes] = await Promise.all([
+        fetch('/api/agents/definitions'),
+        fetch('/api/status'),
+      ]);
+      if (agentsRes.ok) {
+        const data = await agentsRes.json();
+        setAgents(data.agents || []);
+      }
+      if (statusRes.ok) {
+        const data = await statusRes.json();
+        setSessions(data.tasks?.allSessions || []);
       }
     } catch (err) {
-      console.error('Failed to fetch operations data:', err);
+      console.error('Fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -66,313 +113,621 @@ export default function AgentsPage() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000); // Refresh every 10s
+    const interval = setInterval(fetchData, 8000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const spawnAgent = async () => {
-    if (!data || data.agents.active >= data.agents.maxConcurrent) return;
-    
-    setSpawning(true);
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+
+  const resetForm = () => {
+    setForm({ name: '', description: '', soul: '', model: 'claude-sonnet-4-20250514', icon: 'bot', color: '#f97316', thinking: 'low', system_prompt: '', skills: '', tools: '' });
+    setEditAgent(null);
+  };
+
+  const openEdit = (agent: AgentDef) => {
+    setForm({
+      name: agent.name,
+      description: agent.description || '',
+      soul: agent.soul || '',
+      model: agent.model,
+      icon: agent.icon,
+      color: agent.color,
+      thinking: agent.thinking,
+      system_prompt: agent.system_prompt || '',
+      skills: JSON.parse(agent.skills || '[]').join(', '),
+      tools: JSON.parse(agent.tools || '[]').join(', '),
+    });
+    setEditAgent(agent);
+    setShowCreate(true);
+  };
+
+  const saveAgent = async () => {
+    if (!form.name.trim()) return;
+
+    const payload = {
+      ...form,
+      skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
+      tools: form.tools.split(',').map(s => s.trim()).filter(Boolean),
+    };
+
     try {
-      const res = await fetch('/api/agents/spawn', { method: 'POST' });
+      const url = editAgent ? `/api/agents/definitions/${editAgent.id}` : '/api/agents/definitions';
+      const method = editAgent ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
       if (res.ok) {
-        // Refresh data after spawn
-        setTimeout(fetchData, 2000);
+        setToast({ type: 'success', msg: editAgent ? 'Agent updated' : 'Agent created' });
+        setShowCreate(false);
+        resetForm();
+        fetchData();
+      } else {
+        const data = await res.json();
+        setToast({ type: 'error', msg: data.error || 'Failed' });
       }
-    } catch (err) {
-      console.error('Failed to spawn agent:', err);
+    } catch {
+      setToast({ type: 'error', msg: 'Network error' });
+    }
+  };
+
+  const deleteAgent = async (id: string) => {
+    if (!confirm('Delete this agent definition?')) return;
+    try {
+      const res = await fetch(`/api/agents/definitions/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setToast({ type: 'success', msg: 'Agent deleted' });
+        fetchData();
+      } else {
+        setToast({ type: 'error', msg: 'Failed to delete' });
+      }
+    } catch {
+      setToast({ type: 'error', msg: 'Network error' });
+    }
+  };
+
+  const spawnAgent = async (agentId: string, task?: string) => {
+    setSpawning(agentId);
+    try {
+      const res = await fetch(`/api/agents/definitions/${agentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setToast({ type: 'success', msg: data.message || 'Spawned' });
+        setSpawnTarget(null);
+        setSpawnTask('');
+        setTimeout(fetchData, 3000);
+      } else {
+        setToast({ type: 'error', msg: data.error || 'Failed to spawn' });
+      }
+    } catch {
+      setToast({ type: 'error', msg: 'Network error' });
     } finally {
-      setSpawning(false);
+      setSpawning(null);
     }
   };
 
-  const getStatusColor = (status: string) => {
+  // Group sessions by type
+  const mainSessions = sessions.filter(s => s.key.includes('agent:main') && !s.key.includes('subagent:'));
+  const subAgentSessions = sessions.filter(s => s.key.includes('subagent:') || s.key.includes('spawn:') || (s.key.includes('isolated') && !s.key.includes('cron')));
+  const cronSessions = sessions.filter(s => s.key.includes('cron:'));
+  const activeSessions = sessions.filter(s => s.status === 'active');
+  const idleSessions = sessions.filter(s => s.status === 'idle');
+
+  const getStatusDot = (status: string) => {
     switch (status) {
-      case 'running': return 'bg-green-500';
-      case 'completed': return 'bg-blue-500';
-      case 'error': return 'bg-red-500';
-      default: return 'bg-zinc-500';
+      case 'active': return 'bg-green-500 animate-pulse';
+      case 'idle': return 'bg-yellow-500';
+      default: return 'bg-zinc-600';
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'high': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      case 'medium': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'low': return 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30';
-      default: return 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30';
-    }
-  };
+  // Match agent definitions to running sessions (heuristic matching by name)
+  const enrichedAgents = agents.map(agent => {
+    const runningSessions = sessions.filter(s => 
+      s.displayName.toLowerCase().includes(agent.name.toLowerCase()) ||
+      s.key.toLowerCase().includes(agent.name.toLowerCase())
+    );
+    const activeSession = runningSessions.find(s => s.status === 'active');
+    return {
+      ...agent,
+      isRunning: runningSessions.length > 0,
+      activeSession,
+      sessionCount: runningSessions.length,
+    };
+  });
 
-  const formatTimeAgo = (timestamp: number) => {
-    const diff = Date.now() - timestamp;
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return `${Math.floor(diff / 86400000)}d ago`;
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="text-zinc-400">Loading agents...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-zinc-400">Loading...</div>
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg ${
+          toast.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
+
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Agents</h1>
+            <p className="text-zinc-500 text-sm mt-1">
+              Define, manage, and spawn specialized agents
+            </p>
           </div>
-        ) : !data ? (
-          <div className="text-center py-20 text-zinc-500">
-            Failed to load operations data
+          <div className="flex items-center gap-3">
+            <div className="text-right text-xs text-zinc-500">
+              <div>{activeSessions.length} active session{activeSessions.length !== 1 ? 's' : ''}</div>
+              <div>{agents.length} agent type{agents.length !== 1 ? 's' : ''}</div>
+            </div>
+            <button
+              onClick={() => { resetForm(); setShowCreate(true); }}
+              className="px-3 sm:px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-colors whitespace-nowrap"
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="hidden sm:inline">New Agent</span>
+              <span className="sm:hidden">New</span>
+            </button>
           </div>
-        ) : (
-          <>
-            {/* Main Agent Status */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${
-                    data.mainAgent.status === 'processing' ? 'bg-green-500/20' :
-                    data.mainAgent.status === 'thinking' ? 'bg-yellow-500/20' :
-                    'bg-zinc-800'
-                  }`}>
-                    <svg className={`w-7 h-7 ${
-                      data.mainAgent.status === 'processing' ? 'text-green-400 animate-pulse' :
-                      data.mainAgent.status === 'thinking' ? 'text-yellow-400' :
-                      'text-zinc-500'
-                    }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-white font-semibold text-lg">Main Agent</h2>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        data.mainAgent.status === 'processing' ? 'bg-green-500/20 text-green-400' :
-                        data.mainAgent.status === 'thinking' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-zinc-700 text-zinc-400'
-                      }`}>
-                        {data.mainAgent.status === 'processing' ? 'Processing' :
-                         data.mainAgent.status === 'thinking' ? 'Thinking' : 'Idle'}
-                      </span>
-                    </div>
-                    <p className="text-zinc-400 text-sm mt-1 max-w-md truncate">
-                      {data.mainAgent.activity}
-                    </p>
-                    <p className="text-zinc-600 text-xs mt-1">
-                      Last active: {formatTimeAgo(data.mainAgent.lastActive)}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  {data.mainAgent.model && (
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      data.mainAgent.model.includes('opus') ? 'bg-purple-500/20 text-purple-400' :
-                      data.mainAgent.model.includes('sonnet') ? 'bg-blue-500/20 text-blue-400' :
-                      'bg-green-500/20 text-green-400'
-                    }`}>
-                      {data.mainAgent.model.includes('opus') ? 'Opus' :
-                       data.mainAgent.model.includes('sonnet') ? 'Sonnet' : 
-                       data.mainAgent.model.split('-').pop()}
-                    </span>
-                  )}
-                  {data.mainAgent.sessionTokens && (
-                    <p className="text-zinc-600 text-xs mt-2">
-                      {(data.mainAgent.sessionTokens / 1000).toFixed(0)}k tokens
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
+        </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <div className="text-zinc-500 text-sm mb-1">Queue Backlog</div>
-                <div className="text-3xl font-bold text-white">{data.queue.backlog}</div>
-                <div className="text-zinc-600 text-xs mt-1">tasks waiting</div>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <div className="text-zinc-500 text-sm mb-1">In Progress</div>
-                <div className="text-3xl font-bold text-orange-400">{data.queue.inProgress}</div>
-                <div className="text-zinc-600 text-xs mt-1">being worked on</div>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <div className="text-zinc-500 text-sm mb-1">Active Agents</div>
-                <div className="text-3xl font-bold text-green-400">
-                  {data.agents.active}
-                  <span className="text-zinc-600 text-lg font-normal">/{data.agents.maxConcurrent}</span>
-                </div>
-                <div className="text-zinc-600 text-xs mt-1">sub-agents running</div>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <div className="text-zinc-500 text-sm mb-1">Capacity</div>
-                <div className={`text-3xl font-bold ${
-                  data.agents.active < data.agents.maxConcurrent ? 'text-green-400' : 'text-yellow-400'
-                }`}>
-                  {data.agents.maxConcurrent - data.agents.active}
-                </div>
-                <div className="text-zinc-600 text-xs mt-1">slots available</div>
-              </div>
-            </div>
+        {/* Agent Cards Grid */}
+        {enrichedAgents.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            {enrichedAgents.map((agent) => (
+              <div
+                key={agent.id}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition-colors group"
+              >
+                {/* Color bar */}
+                <div className="h-1" style={{ backgroundColor: agent.color }} />
 
-            {/* Recommendations */}
-            {data.recommendations.length > 0 && (
-              <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4 mb-6">
-                <h3 className="text-white font-medium mb-2 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                  Recommendations
-                </h3>
-                <ul className="space-y-1">
-                  {data.recommendations.map((rec, i) => (
-                    <li key={i} className="text-zinc-300 text-sm flex items-start gap-2">
-                      <span className="text-purple-400 mt-0.5">•</span>
-                      {rec}
-                    </li>
-                  ))}
-                </ul>
-                {data.agents.active < data.agents.maxConcurrent && data.queue.backlog > 0 && (
-                  <button
-                    onClick={spawnAgent}
-                    disabled={spawning}
-                    className="mt-3 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-                  >
-                    {spawning ? (
-                      <>
-                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center relative"
+                        style={{ backgroundColor: agent.color + '20' }}
+                      >
+                        <svg className="w-6 h-6" viewBox="0 0 100 100" style={{ color: agent.color }} fill="currentColor">
+                          <LobsterPath />
                         </svg>
-                        Spawning...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Spawn Agent
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Active Agents */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl">
-                <div className="p-4 border-b border-zinc-800">
-                  <h2 className="text-white font-medium flex items-center gap-2">
-                    <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                    </svg>
-                    Active Sub-Agents
-                  </h2>
-                </div>
-                <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
-                  {data.agents.sessions.length === 0 ? (
-                    <div className="text-center py-8 text-zinc-500">
-                      <svg className="w-12 h-12 mx-auto text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                      </svg>
-                      <p>No active sub-agents</p>
-                      <p className="text-xs text-zinc-600 mt-1">Agents spawn when work is picked up</p>
-                    </div>
-                  ) : (
-                    data.agents.sessions.map((agent) => (
-                      <div key={agent.sessionKey} className="bg-zinc-800/50 rounded-lg p-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${getStatusColor(agent.status)}`} />
-                            <span className="text-white font-medium text-sm">
-                              {agent.label || agent.sessionKey.slice(0, 12)}
-                            </span>
-                          </div>
-                          {agent.model && (
+                        {agent.isRunning && (
+                          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${agent.activeSession ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-white font-semibold">{agent.name}</h3>
+                          {agent.isRunning && (
                             <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                              agent.model.includes('opus') ? 'bg-purple-500/20 text-purple-400' :
-                              agent.model.includes('sonnet') ? 'bg-blue-500/20 text-blue-400' :
-                              'bg-green-500/20 text-green-400'
+                              agent.activeSession 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : 'bg-yellow-500/20 text-yellow-400'
                             }`}>
-                              {agent.model.includes('opus') ? 'Opus' :
-                               agent.model.includes('sonnet') ? 'Sonnet' : 'Haiku'}
+                              {agent.activeSession ? 'Active' : 'Idle'}
                             </span>
                           )}
                         </div>
-                        {agent.task && (
-                          <p className="text-zinc-400 text-sm line-clamp-2">{agent.task}</p>
-                        )}
-                        {agent.lastMessage && (
-                          <p className="text-zinc-500 text-xs mt-2 line-clamp-1 italic">
-                            Last: {agent.lastMessage}
-                          </p>
-                        )}
-                        {agent.startedAt && (
-                          <p className="text-zinc-600 text-xs mt-1">
-                            Started: {agent.startedAt}
-                          </p>
-                        )}
+                        <span className="text-xs text-zinc-500">{formatModel(agent.model)}</span>
                       </div>
-                    ))
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => openEdit(agent)}
+                        className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+                        title="Edit"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => deleteAgent(agent.id)}
+                        className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors"
+                        title="Delete"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {agent.description && (
+                    <p className="text-zinc-400 text-sm mb-3 line-clamp-2">{agent.description}</p>
                   )}
+
+                  {agent.soul && (
+                    <p className="text-zinc-500 text-xs italic mb-3 line-clamp-2">{agent.soul}</p>
+                  )}
+
+                  {/* Currently doing (if active) */}
+                  {agent.activeSession && agent.activeSession.messages && agent.activeSession.messages.length > 0 && (
+                    <div className="mb-3 p-2 bg-green-500/5 border border-green-500/20 rounded">
+                      <div className="text-xs text-green-400 mb-1 flex items-center gap-1">
+                        <svg className="w-3 h-3 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                          <circle cx="10" cy="10" r="5" />
+                        </svg>
+                        Currently working on:
+                      </div>
+                      <p className="text-zinc-300 text-xs line-clamp-2">
+                        {agent.activeSession.messages[agent.activeSession.messages.length - 1].content}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Skills tags */}
+                  {(() => {
+                    const skills = JSON.parse(agent.skills || '[]');
+                    return skills.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {skills.map((s: string) => (
+                          <span key={s} className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-xs">{s}</span>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+
+                  <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+                    <span className="text-xs text-zinc-600">
+                      {agent.spawn_count} spawn{agent.spawn_count !== 1 ? 's' : ''}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {spawnTarget === agent.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={spawnTask}
+                            onChange={(e) => setSpawnTask(e.target.value)}
+                            onKeyDown={(e) => { 
+                              if (e.key === 'Enter') spawnAgent(agent.id, spawnTask || undefined); 
+                              if (e.key === 'Escape') { setSpawnTarget(null); setSpawnTask(''); } 
+                            }}
+                            placeholder="Task description..."
+                            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-white w-36 focus:outline-none focus:border-orange-500/50"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => spawnAgent(agent.id, spawnTask || undefined)}
+                            disabled={spawning === agent.id}
+                            className="px-2 py-1 bg-green-600 hover:bg-green-700 disabled:bg-zinc-700 text-white rounded text-xs font-medium transition-colors"
+                            title="Spawn agent (task is optional)"
+                          >
+                            Go
+                          </button>
+                          <button
+                            onClick={() => { setSpawnTarget(null); setSpawnTask(''); }}
+                            className="px-1.5 py-1 text-zinc-500 hover:text-white text-xs"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setSpawnTarget(agent.id)}
+                          disabled={spawning === agent.id}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                          style={{
+                            backgroundColor: agent.color + '20',
+                            color: agent.color,
+                          }}
+                          title="Spawn a new instance of this agent in an isolated session"
+                        >
+                          {spawning === agent.id ? (
+                            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            </svg>
+                          )}
+                          Spawn
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-12 text-center mb-8">
+            <svg className="w-12 h-12 mx-auto text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+            </svg>
+            <p className="text-zinc-400 mb-1">No agents defined yet</p>
+            <p className="text-zinc-600 text-sm mb-4">Create your first specialized agent</p>
+            <button
+              onClick={() => { resetForm(); setShowCreate(true); }}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium"
+            >
+              Create Agent
+            </button>
+          </div>
+        )}
+
+        {/* Live Sessions */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            Live Sessions
+            <span className="px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-300 text-xs font-medium">
+              {sessions.length} total
+            </span>
+            {activeSessions.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-xs font-medium">
+                {activeSessions.length} active
+              </span>
+            )}
+            {idleSessions.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs font-medium">
+                {idleSessions.length} idle
+              </span>
+            )}
+          </h2>
+
+          {sessions.length > 0 ? (
+            <div className="space-y-4">
+              {/* Main session */}
+              {mainSessions.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-400 mb-2">Main Session</h3>
+                  <div className="space-y-1.5">
+                    {mainSessions.map((s) => (
+                      <SessionRow key={s.key} session={s} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Sub-agents */}
+              {subAgentSessions.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-400 mb-2">Sub-Agents & Isolated</h3>
+                  <div className="space-y-1.5">
+                    {subAgentSessions.map((s) => (
+                      <SessionRow key={s.key} session={s} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Cron jobs */}
+              {cronSessions.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-400 mb-2">Scheduled Tasks</h3>
+                  <div className="space-y-1.5">
+                    {cronSessions.map((s) => (
+                      <SessionRow key={s.key} session={s} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-zinc-600 text-sm">No sessions found</div>
+          )}
+        </div>
+      </main>
+
+      {/* Create/Edit Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCreate(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-zinc-800">
+              <h2 className="text-lg font-semibold text-white">
+                {editAgent ? `Edit ${editAgent.name}` : 'New Agent'}
+              </h2>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Porter, Developer, Marketing"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="What this agent does"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+
+              {/* Soul */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Soul / Personality</label>
+                <textarea
+                  value={form.soul}
+                  onChange={(e) => setForm({ ...form, soul: e.target.value })}
+                  placeholder="Who is this agent? Their personality, communication style, expertise..."
+                  rows={3}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+
+              {/* Model + Thinking row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Model</label>
+                  <select
+                    value={form.model}
+                    onChange={(e) => setForm({ ...form, model: e.target.value })}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                  >
+                    <option value="claude-sonnet-4-20250514">Sonnet 4</option>
+                    <option value="claude-haiku-3-5-20241022">Haiku 3.5</option>
+                    <option value="claude-opus-4-20250514">Opus 4</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Thinking</label>
+                  <select
+                    value={form.thinking}
+                    onChange={(e) => setForm({ ...form, thinking: e.target.value })}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                  >
+                    <option value="off">Off</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Work Queue */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl">
-                <div className="p-4 border-b border-zinc-800">
-                  <h2 className="text-white font-medium flex items-center gap-2">
-                    <svg className="w-5 h-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                    Work Queue
-                  </h2>
+              {/* Icon + Color row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Icon</label>
+                  <select
+                    value={form.icon}
+                    onChange={(e) => setForm({ ...form, icon: e.target.value })}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                  >
+                    <option value="bot">Bot</option>
+                    <option value="porter">Porter (Arrows)</option>
+                    <option value="code">Code</option>
+                    <option value="megaphone">Marketing</option>
+                    <option value="shield">Shield</option>
+                    <option value="pencil">Writer</option>
+                    <option value="chart">Analytics</option>
+                    <option value="support">Support</option>
+                  </select>
                 </div>
-                <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
-                  {data.queue.items.length === 0 ? (
-                    <div className="text-center py-8 text-zinc-500">
-                      <svg className="w-12 h-12 mx-auto text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                      <p>Queue is empty</p>
-                      <p className="text-xs text-zinc-600 mt-1">Add work via chat or HEARTBEAT</p>
-                    </div>
-                  ) : (
-                    data.queue.items.map((item) => (
-                      <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-zinc-800/50">
-                        <div className={`w-1 self-stretch rounded-full ${
-                          item.priority === 'critical' ? 'bg-red-500' :
-                          item.priority === 'high' ? 'bg-orange-500' :
-                          item.priority === 'medium' ? 'bg-blue-500' : 'bg-zinc-600'
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-white text-sm truncate">{item.title}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`px-1.5 py-0.5 rounded text-xs border ${getPriorityColor(item.priority)}`}>
-                              {item.priority}
-                            </span>
-                            {item.product && (
-                              <span className="text-zinc-600 text-xs">{item.product}</span>
-                            )}
-                            <span className="text-zinc-700 text-xs">{formatTimeAgo(item.created_at)}</span>
-                          </div>
-                        </div>
-                        <span className={`px-1.5 py-0.5 rounded text-xs ${
-                          item.status === 'in_progress' ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'
-                        }`}>
-                          {item.status === 'in_progress' ? 'Active' : 'Queued'}
-                        </span>
-                      </div>
-                    ))
-                  )}
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={form.color}
+                      onChange={(e) => setForm({ ...form, color: e.target.value })}
+                      className="w-8 h-8 rounded cursor-pointer bg-transparent border-0"
+                    />
+                    <input
+                      type="text"
+                      value={form.color}
+                      onChange={(e) => setForm({ ...form, color: e.target.value })}
+                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-orange-500/50"
+                    />
+                  </div>
                 </div>
               </div>
+
+              {/* Skills */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Skills (comma-separated)</label>
+                <input
+                  type="text"
+                  value={form.skills}
+                  onChange={(e) => setForm({ ...form, skills: e.target.value })}
+                  placeholder="e.g. github, wp-cli, coding-agent"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+
+              {/* System Prompt */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">System Prompt (additional instructions)</label>
+                <textarea
+                  value={form.system_prompt}
+                  onChange={(e) => setForm({ ...form, system_prompt: e.target.value })}
+                  placeholder="Extra instructions for this agent..."
+                  rows={3}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
             </div>
-          </>
-        )}
-      </main>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-zinc-800 flex items-center justify-between">
+              <button
+                onClick={() => { setShowCreate(false); resetForm(); }}
+                className="px-4 py-2 text-zinc-400 hover:text-white text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveAgent}
+                disabled={!form.name.trim()}
+                className="px-5 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-zinc-700 disabled:text-zinc-500 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {editAgent ? 'Save Changes' : 'Create Agent'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function SessionRow({ session }: { session: SessionInfo }) {
+  const badge = (() => {
+    const m = session.model?.replace('anthropic/', '') || '';
+    if (m.includes('opus')) return { bg: 'bg-purple-500/20 text-purple-400', name: 'Opus' };
+    if (m.includes('sonnet')) return { bg: 'bg-blue-500/20 text-blue-400', name: 'Sonnet' };
+    if (m.includes('haiku')) return { bg: 'bg-green-500/20 text-green-400', name: 'Haiku' };
+    return { bg: 'bg-zinc-700 text-zinc-400', name: m || 'unknown' };
+  })();
+
+  const lastMsg = session.messages?.[session.messages.length - 1];
+  const statusDot = session.status === 'active' ? 'bg-green-500 animate-pulse' : session.status === 'idle' ? 'bg-yellow-500' : 'bg-zinc-600';
+
+  return (
+    <Link
+      href={session.sessionId ? `/sessions/${session.sessionId}` : '#'}
+      className="flex items-start gap-3 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/50 p-3 transition-colors"
+    >
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${statusDot}`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-white text-sm font-medium truncate">{session.displayName}</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 ${badge.bg}`}>{badge.name}</span>
+          <span className="text-zinc-600 text-xs flex-shrink-0 ml-auto">{formatTimeAgo(session.lastActive)}</span>
+        </div>
+        {lastMsg && (
+          <div className="text-zinc-500 text-xs line-clamp-2">
+            {typeof lastMsg.content === 'string' 
+              ? lastMsg.content.replace(/\n/g, ' ') 
+              : JSON.stringify(lastMsg.content).substring(0, 100)}
+          </div>
+        )}
+      </div>
+    </Link>
   );
 }

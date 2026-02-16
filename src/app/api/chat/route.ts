@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth';
 // Read Clawdbot configuration
 function getGatewayConfig() {
   const configPaths = [
+    '/root/.openclaw/openclaw.json',
     '/root/.clawdbot/clawdbot.json',
     join(process.env.HOME || '', '.clawdbot/clawdbot.json'),
     join(process.env.HOME || '', '.openclaw/openclaw.json'),
