@@ -120,8 +120,8 @@ export async function POST(request: NextRequest) {
     try {
       writeFileSync(messagePath, JSON.stringify(queueMessage, null, 2));
 
-      // Wait for response (up to 30 seconds)
-      const maxWait = 30000;
+      // Wait for response (up to 60 seconds - Claude needs time to think)
+      const maxWait = 60000;
       const startTime = Date.now();
       let response = null;
 
@@ -130,8 +130,8 @@ export async function POST(request: NextRequest) {
           response = JSON.parse(readFileSync(responsePath, 'utf8'));
           break;
         }
-        // Wait 500ms before checking again
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Wait 100ms before checking again (faster polling)
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       if (!response) {
