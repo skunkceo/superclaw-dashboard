@@ -26,7 +26,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Start closed on mobile
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -56,6 +56,18 @@ export default function ChatPage() {
   // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  // Set sidebar open on desktop by default
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setSidebarOpen(true);
+      }
+    };
+    handleResize(); // Check on mount
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const loadSessions = async () => {
@@ -226,9 +238,11 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] bg-zinc-950 text-white flex overflow-hidden">
+    <div className="h-[100dvh] md:h-[calc(100vh-3.5rem)] bg-zinc-950 text-white flex overflow-hidden relative pt-0 md:pt-0">
       {/* Sidebar - Chat History */}
-      <div className={`${sidebarOpen ? 'w-80' : 'w-0'} border-r border-zinc-800 bg-zinc-900/50 flex-shrink-0 transition-all duration-300 overflow-hidden flex flex-col h-full relative`}>
+      <div className={`${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } fixed md:relative inset-y-0 left-0 z-30 w-80 md:w-64 lg:w-80 border-r border-zinc-800 bg-zinc-900 md:bg-zinc-900/50 flex-shrink-0 transition-transform duration-300 flex flex-col h-full`}>
         <div className="p-4 border-b border-zinc-800 flex-shrink-0">
           <button
             onClick={startNewChat}
@@ -255,7 +269,11 @@ export default function ChatPage() {
                   }`}
                 >
                   <button
-                    onClick={() => setCurrentSessionId(session.id)}
+                    onClick={() => {
+                      setCurrentSessionId(session.id);
+                      // Auto-close sidebar on mobile after selection
+                      if (window.innerWidth < 768) setSidebarOpen(false);
+                    }}
                     className="w-full text-left px-3 py-2 pr-10"
                   >
                     <div className="text-sm text-zinc-200 truncate">{session.title}</div>
@@ -288,12 +306,20 @@ export default function ChatPage() {
         </div>
       </div>
 
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-20 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="border-b border-zinc-800 px-6 py-4 bg-zinc-900/50 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        {/* Header - Hidden on mobile (main site header is enough) */}
+        <header className="hidden md:flex border-b border-zinc-800 px-3 sm:px-4 md:px-6 py-3 md:py-4 bg-zinc-900/50 flex-shrink-0">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
@@ -303,29 +329,39 @@ export default function ChatPage() {
                 </svg>
               </button>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+                <h1 className="text-base sm:text-lg md:text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
                   Chat with Clawd
                 </h1>
-                <p className="text-sm text-zinc-400">
+                <p className="text-xs sm:text-sm text-zinc-400 hidden sm:block">
                   {currentSessionId ? 'Continuing conversation' : 'Start a new conversation'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="w-2 h-2 rounded-full bg-green-400" />
-              <span className="text-sm text-zinc-400">Connected</span>
+              <span className="text-xs sm:text-sm text-zinc-400 hidden sm:inline">Connected</span>
             </div>
           </div>
         </header>
+        
+        {/* Mobile: Sidebar toggle button (floating) */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="md:hidden fixed top-20 left-4 z-40 p-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors shadow-lg"
+        >
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-6 py-8">
+          <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
             {messages.length === 0 ? (
-              <div className="text-center py-16">
-                <LobsterLogo className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <h2 className="text-xl text-zinc-400 mb-2">Start a conversation</h2>
-                <p className="text-zinc-500">Ask me anything about your OpenClaw setup, or just chat!</p>
+              <div className="text-center py-8 sm:py-12 md:py-16">
+                <LobsterLogo className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 opacity-50" />
+                <h2 className="text-lg sm:text-xl text-zinc-400 mb-2 px-4">Start a conversation</h2>
+                <p className="text-sm sm:text-base text-zinc-500 px-4">Ask me anything about your OpenClaw setup, or just chat!</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -335,14 +371,14 @@ export default function ChatPage() {
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[80%] px-4 py-3 rounded-lg ${
+                      className={`max-w-[75%] sm:max-w-[80%] px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg ${
                         message.role === 'user'
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white ml-12'
-                          : 'bg-zinc-800 text-zinc-100 mr-12'
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white ml-4 sm:ml-8 md:ml-12'
+                          : 'bg-zinc-800 text-zinc-100 mr-4 sm:mr-8 md:mr-12'
                       }`}
                     >
-                      <div className="whitespace-pre-wrap break-words">{message.content}</div>
-                      <div className={`text-xs mt-2 ${
+                      <div className="whitespace-pre-wrap break-words text-sm sm:text-base">{message.content}</div>
+                      <div className={`text-[10px] sm:text-xs mt-1.5 sm:mt-2 ${
                         message.role === 'user' ? 'text-orange-100' : 'text-zinc-400'
                       }`}>
                         {formatTime(message.timestamp)}
@@ -352,7 +388,7 @@ export default function ChatPage() {
                 ))}
                 {isLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-zinc-800 text-zinc-100 px-4 py-3 rounded-lg mr-12">
+                    <div className="bg-zinc-800 text-zinc-100 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg mr-4 sm:mr-8 md:mr-12">
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
                           <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" />
@@ -371,10 +407,10 @@ export default function ChatPage() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-zinc-800 px-6 py-4 bg-zinc-900/50 flex-shrink-0">
+        <div className="border-t border-zinc-800 px-3 sm:px-4 md:px-6 py-3 md:py-4 bg-zinc-900/50 flex-shrink-0 sticky bottom-0">
           <div className="max-w-4xl mx-auto">
             {error && (
-              <div className="mb-3 p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-200 text-sm flex items-center justify-between">
+              <div className="mb-2 sm:mb-3 p-2 sm:p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-200 text-xs sm:text-sm flex items-center justify-between">
                 <span>{error}</span>
                 <button
                   onClick={() => setError(null)}
@@ -384,7 +420,7 @@ export default function ChatPage() {
                 </button>
               </div>
             )}
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               <input
                 ref={inputRef}
                 type="text"
@@ -392,16 +428,16 @@ export default function ChatPage() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Type your message..."
-                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                 disabled={isLoading}
               />
               <button
                 onClick={sendMessage}
                 disabled={!input.trim() || isLoading}
-                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium text-white transition-all duration-200 min-w-[80px]"
+                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-medium text-sm sm:text-base text-white transition-all duration-200 min-w-[70px] sm:min-w-[80px]"
               >
                 {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
                 ) : (
                   'Send'
                 )}
