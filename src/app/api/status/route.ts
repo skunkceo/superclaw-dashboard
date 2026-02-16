@@ -374,9 +374,24 @@ export async function GET() {
     }
   }
 
-  // Get REAL usage data from session files
+  // Get sessions directory
   const sessionsDir = getSessionsDir(configPath);
-  const usage = parseSessionUsage(sessionsDir);
+  
+  // Get REAL usage data from synced file (updated by root cron job)
+  let usage = {
+    today: { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0, byModel: {} },
+    thisWeek: { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0, byModel: {} },
+    thisMonth: { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0, byModel: {} },
+    allTime: { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0, byModel: {} },
+  };
+  try {
+    const usageData = readFileSync('/tmp/openclaw-usage.json', 'utf8');
+    usage = JSON.parse(usageData);
+  } catch (err) {
+    console.error('Failed to read usage data:', err);
+    // Fall back to parsing session files (will be empty for mike user)
+    usage = parseSessionUsage(sessionsDir);
+  }
   const subscription = getSubscriptionInfo(configPath);
 
   // Get session counts

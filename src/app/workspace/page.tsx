@@ -29,15 +29,26 @@ export default function WorkspacePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [agentName, setAgentName] = useState<string>('');
+
+  // Get agent ID from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const agent = params.get('agent');
+    setAgentId(agent);
+  }, []);
 
   // Load workspace file list
   useEffect(() => {
     const fetchWorkspaceData = async () => {
       try {
-        const res = await fetch('/api/workspace');
+        const url = agentId ? `/api/workspace?agent=${agentId}` : '/api/workspace';
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch workspace data');
         const data = await res.json();
         setWorkspaceData(data);
+        if (data.agentName) setAgentName(data.agentName);
         
         // Auto-select first existing file
         const firstExistingFile = data.files.find((f: WorkspaceFile) => f.exists);
@@ -52,7 +63,7 @@ export default function WorkspacePage() {
     };
 
     fetchWorkspaceData();
-  }, []);
+  }, [agentId]);
 
   // Load selected file content
   useEffect(() => {
@@ -60,7 +71,10 @@ export default function WorkspacePage() {
 
     const fetchFileContent = async () => {
       try {
-        const res = await fetch(`/api/workspace/${selectedFile}`);
+        const url = agentId 
+          ? `/api/workspace/${selectedFile}?agent=${agentId}`
+          : `/api/workspace/${selectedFile}`;
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch file content');
         const data: FileContent = await res.json();
         setFileContent(data.content);
@@ -72,7 +86,7 @@ export default function WorkspacePage() {
     };
 
     fetchFileContent();
-  }, [selectedFile]);
+  }, [selectedFile, agentId]);
 
   // Check for changes
   useEffect(() => {
@@ -86,7 +100,10 @@ export default function WorkspacePage() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/workspace/${selectedFile}`, {
+      const url = agentId 
+        ? `/api/workspace/${selectedFile}?agent=${agentId}`
+        : `/api/workspace/${selectedFile}`;
+      const res = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -138,7 +155,16 @@ export default function WorkspacePage() {
       <div className="flex h-[calc(100vh-88px)]">
         {/* Sidebar - File List */}
         <div className="w-64 bg-zinc-900/30 border-r border-zinc-800 p-4">
-          <h2 className="font-semibold text-orange-400 mb-4">Files</h2>
+          <div className="mb-4">
+            {agentName ? (
+              <>
+                <h2 className="font-semibold text-orange-400">{agentName}</h2>
+                <p className="text-xs text-zinc-500 mt-1">Agent Workspace</p>
+              </>
+            ) : (
+              <h2 className="font-semibold text-orange-400">Main Workspace</h2>
+            )}
+          </div>
           <div className="space-y-2">
             {workspaceData?.files.map((file) => (
               <button

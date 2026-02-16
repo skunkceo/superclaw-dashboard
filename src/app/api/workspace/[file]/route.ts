@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getCurrentUser, hasRole } from '@/lib/auth';
 
-// Read workspace path from clawdbot config
-async function getWorkspacePath() {
+// Read workspace path from clawdbot config or agent-specific path
+async function getWorkspacePath(agentId?: string | null) {
+  // Agent-specific workspace
+  if (agentId) {
+    const agentWorkspace = `/root/.superclaw/agents/${agentId}/workspace`;
+    // Ensure directory exists
+    try {
+      await mkdir(agentWorkspace, { recursive: true });
+    } catch {
+      // Ignore if already exists
+    }
+    return agentWorkspace;
+  }
+  
+  // Main workspace
   try {
     const configPaths = ['/root/.openclaw/openclaw.json', '/root/.clawdbot/clawdbot.json'];
     let configContent = '';
@@ -74,7 +87,11 @@ export async function GET(
       );
     }
     
-    const workspacePath = await getWorkspacePath();
+    // Get agent ID from query params
+    const { searchParams } = new URL(request.url);
+    const agentId = searchParams.get('agent');
+    
+    const workspacePath = await getWorkspacePath(agentId);
     const filePath = path.join(workspacePath, file);
     
     try {
@@ -137,7 +154,11 @@ export async function PUT(
       );
     }
     
-    const workspacePath = await getWorkspacePath();
+    // Get agent ID from query params
+    const { searchParams } = new URL(request.url);
+    const agentId = searchParams.get('agent');
+    
+    const workspacePath = await getWorkspacePath(agentId);
     const filePath = path.join(workspacePath, file);
     
     await writeFile(filePath, content, 'utf-8');

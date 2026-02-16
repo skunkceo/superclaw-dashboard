@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import Database from 'better-sqlite3';
 import { getCurrentUser, hasRole } from '@/lib/auth';
 
-// Read workspace path from clawdbot config
-async function getWorkspacePath() {
+// Read workspace path from clawdbot config or agent-specific path
+async function getWorkspacePath(agentId?: string | null) {
+  // Agent-specific workspace
+  if (agentId) {
+    return `/root/.superclaw/agents/${agentId}/workspace`;
+  }
+  
+  // Main workspace
   try {
     const configPaths = ['/root/.openclaw/openclaw.json', '/root/.clawdbot/clawdbot.json'];
     let configContent = '';
@@ -19,6 +26,18 @@ async function getWorkspacePath() {
   }
 }
 
+// Get agent name from database
+function getAgentName(agentId: string): string | null {
+  try {
+    const db = new Database('/root/.superclaw/superclaw.db');
+    const agent = db.prepare('SELECT name FROM agent_definitions WHERE id = ?').get(agentId) as { name?: string } | undefined;
+    db.close();
+    return agent?.name || null;
+  } catch {
+    return null;
+  }
+}
+
 const ALLOWED_FILES = [
   'SOUL.md',
   'USER.md',
@@ -29,7 +48,7 @@ const ALLOWED_FILES = [
   'HEARTBEAT.md'
 ];
 
-export async function GET() {
+export async function GET(request: Request) {
   // Check authentication
   const user = await getCurrentUser();
   if (!user) {
@@ -42,7 +61,12 @@ export async function GET() {
   }
 
   try {
-    const workspacePath = await getWorkspacePath();
+    // Get agent ID from query params
+    const { searchParams } = new URL(request.url);
+    const agentId = searchParams.get('agent');
+    
+    const workspacePath = await getWorkspacePath(agentId);
+    const agentName = agentId ? getAgentName(agentId) : null;
     
     const files = await Promise.all(
       ALLOWED_FILES.map(async (filename) => {
@@ -58,6 +82,7 @@ export async function GET() {
 
     return NextResponse.json({
       workspacePath,
+      agentName,
       files
     });
   } catch (error) {
