@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getAllTasks } from '@/lib/db';
+import { assignAgentByPorter } from '@/lib/porter';
 import Database from 'better-sqlite3';
 import { join } from 'path';
 import { existsSync } from 'fs';
@@ -20,32 +21,6 @@ interface Task {
   source: 'chat' | 'backlog' | 'cron';
   priority?: string;
   area?: string;
-}
-
-// Porter routing logic for Command Centre tasks
-function assignAgentByArea(area?: string, title?: string): string {
-  if (!area && !title) return 'developer';
-  
-  const text = `${area || ''} ${title || ''}`.toLowerCase();
-  
-  // SEO/Marketing areas
-  if (text.includes('seo') || text.includes('marketing') || text.includes('growth') || text.includes('content')) {
-    if (text.includes('seo') || text.includes('ranking') || text.includes('gsc')) return 'seo';
-    if (text.includes('reddit') || text.includes('social') || text.includes('outreach')) return 'marketing';
-    if (text.includes('content') || text.includes('blog') || text.includes('writing')) return 'content';
-  }
-  
-  // Development areas
-  if (area === 'dev' || area === 'infrastructure' || text.includes('code') || text.includes('build')) {
-    return 'developer';
-  }
-  
-  // Default assignment based on keywords
-  if (text.includes('seo') || text.includes('gsc') || text.includes('ranking')) return 'seo';
-  if (text.includes('reddit') || text.includes('social') || text.includes('marketing')) return 'marketing';
-  if (text.includes('blog') || text.includes('content') || text.includes('writing')) return 'content';
-  
-  return 'developer'; // Default
 }
 
 export async function GET() {
@@ -97,7 +72,7 @@ export async function GET() {
         }>;
 
         for (const ccTask of ccTasks) {
-          const assignedAgent = assignAgentByArea(ccTask.area, ccTask.title);
+          const assignedAgent = assignAgentByPorter(ccTask.title, ccTask.description || ccTask.area);
           
           allTasks.push({
             id: `cc-${ccTask.id}`,

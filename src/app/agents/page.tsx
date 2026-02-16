@@ -23,6 +23,7 @@ interface AgentDef {
   memory_dir: string | null;
   system_prompt: string | null;
   thinking: string;
+  handoff_rules: string;
   spawn_count: number;
   created_at: number;
 }
@@ -87,7 +88,7 @@ export default function AgentsPage() {
   const [form, setForm] = useState({
     name: '', description: '', soul: '', model: 'claude-sonnet-4-20250514',
     icon: 'bot', color: '#f97316', thinking: 'low', system_prompt: '',
-    skills: '', tools: '',
+    skills: '', tools: '', handoff_rules: '',
   });
 
   const fetchData = useCallback(async () => {
@@ -125,7 +126,7 @@ export default function AgentsPage() {
   }, [toast]);
 
   const resetForm = () => {
-    setForm({ name: '', description: '', soul: '', model: 'claude-sonnet-4-20250514', icon: 'bot', color: '#f97316', thinking: 'low', system_prompt: '', skills: '', tools: '' });
+    setForm({ name: '', description: '', soul: '', model: 'claude-sonnet-4-20250514', icon: 'bot', color: '#f97316', thinking: 'low', system_prompt: '', skills: '', tools: '', handoff_rules: '' });
     setEditAgent(null);
   };
 
@@ -141,6 +142,7 @@ export default function AgentsPage() {
       system_prompt: agent.system_prompt || '',
       skills: JSON.parse(agent.skills || '[]').join(', '),
       tools: JSON.parse(agent.tools || '[]').join(', '),
+      handoff_rules: JSON.parse(agent.handoff_rules || '[]').join('\n'),
     });
     setEditAgent(agent);
     setShowCreate(true);
@@ -153,6 +155,7 @@ export default function AgentsPage() {
       ...form,
       skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
       tools: form.tools.split(',').map(s => s.trim()).filter(Boolean),
+      handoff_rules: form.handoff_rules.split('\n').map(s => s.trim()).filter(Boolean),
     };
 
     try {
@@ -657,6 +660,19 @@ export default function AgentsPage() {
                   onChange={(e) => setForm({ ...form, skills: e.target.value })}
                   placeholder="e.g. github, wp-cli, coding-agent"
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+
+              {/* Handoff Rules */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Handoff Rules</label>
+                <p className="text-xs text-zinc-500 mb-2">When should Porter hand tasks to this agent? List keywords, phrases, or patterns (one per line).</p>
+                <textarea
+                  value={form.handoff_rules}
+                  onChange={(e) => setForm({ ...form, handoff_rules: e.target.value })}
+                  placeholder={`reddit, social media, community engagement, subreddit\nanalyze competitors on reddit\npost to r/wordpress`}
+                  rows={4}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-orange-500/50"
                 />
               </div>
 

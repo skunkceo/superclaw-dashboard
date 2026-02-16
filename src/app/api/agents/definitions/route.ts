@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   if (user.role === 'view') return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
 
   const body = await request.json();
-  const { name, description, soul, model, skills, tools, color, icon, memory_dir, system_prompt, max_tokens, thinking } = body;
+  const { name, description, soul, model, skills, tools, color, icon, memory_dir, system_prompt, max_tokens, thinking, handoff_rules } = body;
 
   if (!name || typeof name !== 'string') {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       system_prompt: system_prompt || null,
       max_tokens: max_tokens || null,
       thinking: thinking || 'low',
+      handoff_rules: JSON.stringify(handoff_rules || []),
       created_by: user.id,
     });
 

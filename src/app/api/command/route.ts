@@ -20,7 +20,7 @@ export async function GET() {
 
     // Get tasks from cc_tasks
     const tasks = db ? db.prepare(`
-      SELECT id, title, description, priority, status, product, area, assigned_agent, created_at
+      SELECT id, title, description, priority, status, product, area, assigned_to as assigned_agent, created_at
       FROM cc_tasks
       WHERE status IN ('backlog', 'in_progress')
       ORDER BY 
@@ -135,6 +135,9 @@ export async function GET() {
         active: false,
       },
     ];
+
+    // Close DB
+    if (db) db.close();
 
     return NextResponse.json({
       tasks,

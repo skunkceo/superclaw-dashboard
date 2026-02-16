@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser, hasRole } from '@/lib/auth';
 import { getAllTasks, createTask, Task } from '@/lib/db';
+import { assignAgentByPorter } from '@/lib/porter';
 import { v4 as uuidv4 } from 'uuid';
 
 // GET /api/tasks - List tasks with optional filters
@@ -41,8 +42,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
-    // Porter routing logic - simple keyword-based for now
-    const assigned_agent = assignAgentByKeywords(title);
+    // Porter routing logic - dynamic based on agent handoff rules
+    const assigned_agent = assignAgentByPorter(title);
     
     const newTask: Omit<Task, 'created_at'> = {
       id: uuidv4(),
@@ -65,36 +66,4 @@ export async function POST(request: Request) {
     console.error('Create task error:', error);
     return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
   }
-}
-
-// Porter routing logic (simple keyword-based)
-function assignAgentByKeywords(title: string): string {
-  const titleLower = title.toLowerCase();
-  
-  // SEO Agent keywords
-  if (containsKeywords(titleLower, ['seo', 'gsc', 'ranking', 'keywords', 'search', 'optimization', 'serp', 'organic'])) {
-    return 'seo';
-  }
-  
-  // Marketing Agent keywords
-  if (containsKeywords(titleLower, ['reddit', 'social', 'twitter', 'outreach', 'marketing', 'growth', 'engagement', 'promotion'])) {
-    return 'marketing';
-  }
-  
-  // Content Agent keywords
-  if (containsKeywords(titleLower, ['blog', 'post', 'docs', 'write', 'content', 'article', 'guide', 'documentation'])) {
-    return 'content';
-  }
-  
-  // Developer Agent (default + specific keywords)
-  if (containsKeywords(titleLower, ['code', 'build', 'deploy', 'bug', 'dashboard', 'api', 'development', 'programming', 'infrastructure'])) {
-    return 'developer';
-  }
-  
-  // Default to Developer Agent (most general)
-  return 'developer';
-}
-
-function containsKeywords(text: string, keywords: string[]): boolean {
-  return keywords.some(keyword => text.includes(keyword));
 }

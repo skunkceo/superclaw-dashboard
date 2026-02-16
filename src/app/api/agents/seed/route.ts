@@ -175,6 +175,7 @@ export async function POST() {
       system_prompt: agent.system_prompt || null,
       memory_dir: null,
       max_tokens: null,
+      handoff_rules: '[]',
       created_by: user.id,
     });
     created++;
