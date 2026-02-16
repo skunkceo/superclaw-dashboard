@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { LobsterLogo } from '@/components/LobsterLogo';
 
 export default function SettingsPage() {
   const [licenseKey, setLicenseKey] = useState('');
@@ -57,61 +58,57 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="text-gray-400">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-zinc-950">
+        <LobsterLogo className="w-16 h-16 animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <div className="border-b border-gray-800">
-        <div className="max-w-4xl mx-auto px-8 py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Settings</h1>
-            <a href="/" className="text-sm text-gray-400 hover:text-white transition-colors">
-              Back to Dashboard
-            </a>
-          </div>
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-zinc-950">
       <div className="max-w-4xl mx-auto px-8 py-12">
+        {/* Page Header */}
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+            Settings
+          </h1>
+          <p className="text-zinc-400">Manage your SuperClaw configuration and license</p>
+        </div>
+
         {/* License Status Section */}
         <div className="mb-12">
-          <h2 className="text-xl font-semibold mb-4">License Status</h2>
+          <h2 className="text-2xl font-semibold mb-6 text-white">License Status</h2>
           
           {licenseStatus?.hasLicense ? (
-            <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="text-2xl">✓</div>
+            <div className="bg-gradient-to-br from-green-900/20 to-green-800/10 border border-green-500/30 rounded-xl p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <LobsterLogo className="w-12 h-12" />
                 <div>
-                  <div className="font-semibold text-lg">SuperClaw Pro Active</div>
-                  <div className="text-sm text-gray-400">Tier: {licenseStatus.tier.toUpperCase()}</div>
+                  <div className="font-semibold text-xl text-green-400">SuperClaw Pro Active</div>
+                  <div className="text-sm text-zinc-400">Tier: {licenseStatus.tier.toUpperCase()}</div>
                 </div>
               </div>
               {licenseStatus.email && (
-                <div className="text-sm text-gray-400">
+                <div className="text-sm text-zinc-400 mb-2">
                   Licensed to: <span className="text-white">{licenseStatus.email}</span>
                 </div>
               )}
-              <div className="text-sm text-gray-400 mt-2">
+              <div className="text-sm text-zinc-400">
                 Activated: <span className="text-white">{new Date(licenseStatus.activatedAt).toLocaleDateString()}</span>
               </div>
             </div>
           ) : (
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="text-2xl">ℹ️</div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <LobsterLogo className="w-12 h-12 opacity-50" />
                 <div>
-                  <div className="font-semibold">Free Tier</div>
-                  <div className="text-sm text-gray-400">Upgrade to unlock Pro features</div>
+                  <div className="font-semibold text-lg text-white">Free Tier</div>
+                  <div className="text-sm text-zinc-400">Upgrade to unlock Pro features</div>
                 </div>
               </div>
               <a
                 href="/upgrade"
-                className="inline-block px-6 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors text-sm font-medium"
+                className="inline-block px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 text-sm font-medium text-white"
               >
                 View Pro Features
               </a>
@@ -122,11 +119,11 @@ export default function SettingsPage() {
         {/* Activate License Section */}
         {!licenseStatus?.hasLicense && (
           <div className="mb-12">
-            <h2 className="text-xl font-semibold mb-4">Activate License</h2>
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-              <form onSubmit={handleActivate} className="space-y-4">
+            <h2 className="text-2xl font-semibold mb-6 text-white">Activate License</h2>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <form onSubmit={handleActivate} className="space-y-5">
                 <div>
-                  <label htmlFor="licenseKey" className="block text-sm font-medium mb-2">
+                  <label htmlFor="licenseKey" className="block text-sm font-medium mb-2 text-zinc-300">
                     License Key
                   </label>
                   <input
@@ -135,13 +132,13 @@ export default function SettingsPage() {
                     value={licenseKey}
                     onChange={(e) => setLicenseKey(e.target.value)}
                     placeholder="XXXX-XXXX-XXXX-XXXX"
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500"
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                     required
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium mb-2">
+                  <label htmlFor="email" className="block text-sm font-medium mb-2 text-zinc-300">
                     Email (Optional)
                   </label>
                   <input
@@ -150,19 +147,19 @@ export default function SettingsPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your@email.com"
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500"
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-zinc-500 mt-2">
                     Used for license recovery and updates
                   </p>
                 </div>
 
                 {message && (
                   <div
-                    className={`p-4 rounded-lg ${
+                    className={`p-4 rounded-lg border ${
                       message.type === 'success'
-                        ? 'bg-green-900/20 border border-green-500/30 text-green-400'
-                        : 'bg-red-900/20 border border-red-500/30 text-red-400'
+                        ? 'bg-green-900/20 border-green-500/30 text-green-400'
+                        : 'bg-red-900/20 border-red-500/30 text-red-400'
                     }`}
                   >
                     {message.text}
@@ -172,16 +169,16 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={validating || !licenseKey.trim()}
-                  className="px-6 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-colors font-medium"
+                  className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed rounded-lg transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 font-medium text-white"
                 >
                   {validating ? 'Validating...' : 'Activate License'}
                 </button>
               </form>
 
-              <div className="mt-6 pt-6 border-t border-gray-700">
-                <p className="text-sm text-gray-400">
+              <div className="mt-8 pt-6 border-t border-zinc-800">
+                <p className="text-sm text-zinc-400">
                   Don't have a license key?{' '}
-                  <a href="/upgrade" className="text-orange-500 hover:text-orange-400">
+                  <a href="/upgrade" className="text-orange-500 hover:text-orange-400 transition-colors">
                     Get SuperClaw Pro
                   </a>
                 </p>
@@ -192,9 +189,9 @@ export default function SettingsPage() {
 
         {/* General Settings Section */}
         <div>
-          <h2 className="text-xl font-semibold mb-4">General Settings</h2>
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-            <p className="text-gray-400 text-sm">
+          <h2 className="text-2xl font-semibold mb-6 text-white">General Settings</h2>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <p className="text-zinc-400 text-sm">
               More settings coming soon...
             </p>
           </div>
