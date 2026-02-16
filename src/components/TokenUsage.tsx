@@ -1,3 +1,7 @@
+'use client';
+
+import { useState } from 'react';
+
 interface ModelUsage {
   input: number;
   output: number;
@@ -28,17 +32,22 @@ interface TokenProps {
 
 const modelLabels: Record<string, string> = {
   // Normalized model names (from usage-parser)
-  'claude-opus-4': 'Claude 3 Opus',
-  'claude-sonnet-4': 'Claude 3.7 Sonnet',
-  'claude-haiku-3.5': 'Claude 3.5 Haiku',
+  'claude-opus-4.0': 'Claude Opus 4.0',
+  'claude-opus-4.5': 'Claude Opus 4.5',
+  'claude-opus-4.6': 'Claude Opus 4.6',
+  'claude-sonnet-4.0': 'Claude Sonnet 4.0',
+  'claude-sonnet-4.5': 'Claude Sonnet 4.5',
+  'claude-haiku-3.5': 'Claude Haiku 3.5',
+  'claude-haiku-4.0': 'Claude Haiku 4.0',
   // Legacy/raw model names (for backwards compatibility)
-  'claude-opus-4-5-20250514': 'Claude 3 Opus',
-  'claude-opus-4-20250514': 'Claude 3 Opus',
-  'claude-opus-4-6': 'Claude 3 Opus',
-  'claude-sonnet-4-20250514': 'Claude 3.7 Sonnet',
-  'claude-sonnet-4-5-20250514': 'Claude 3.7 Sonnet',
-  'claude-sonnet-4-5': 'Claude 3.7 Sonnet',
-  'claude-haiku-3-5-20241022': 'Claude 3.5 Haiku',
+  'claude-opus-4-5-20250514': 'Claude Opus 4.5',
+  'claude-opus-4-20250514': 'Claude Opus 4.0',
+  'claude-opus-4-6': 'Claude Opus 4.6',
+  'claude-sonnet-4-20250514': 'Claude Sonnet 4.0',
+  'claude-sonnet-4-5-20250514': 'Claude Sonnet 4.5',
+  'claude-sonnet-4-5': 'Claude Sonnet 4.5',
+  'claude-haiku-3-5-20241022': 'Claude Haiku 3.5',
+  'claude-haiku-4': 'Claude Haiku 4.0',
   'gpt-4o': 'GPT-4o',
   'gpt-4o-mini': 'GPT-4o Mini',
   'unknown': 'Unknown',
@@ -59,6 +68,8 @@ function getModelLabel(model: string): string {
 }
 
 export function TokenUsage({ tokens, subscription }: TokenProps) {
+  const [showModal, setShowModal] = useState(false);
+
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
@@ -95,8 +106,19 @@ export function TokenUsage({ tokens, subscription }: TokenProps) {
           <div className={`text-xl sm:text-2xl font-bold ${subscription?.isSubscription ? 'text-zinc-400' : 'text-green-400'}`}>
             {formatCost(tokens.estimatedCost)}
           </div>
-          <div className="text-xs text-zinc-500">
-            {subscription?.isSubscription ? 'equiv. API cost' : 'this month'}
+          <div className="text-xs text-zinc-500 flex items-center justify-start sm:justify-end gap-1">
+            <span>{subscription?.isSubscription ? 'equiv. API cost' : 'this month'}</span>
+            {subscription?.isSubscription && (
+              <button
+                onClick={() => setShowModal(true)}
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-zinc-700 hover:bg-zinc-600 text-zinc-400 hover:text-zinc-300 transition-colors"
+                aria-label="Explain equivalent API cost"
+              >
+                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -165,6 +187,49 @@ export function TokenUsage({ tokens, subscription }: TokenProps) {
         <div className="mt-4 pt-4 border-t border-zinc-800 text-center">
           <div className="text-sm text-zinc-500">
             All time: <span className="text-zinc-300 font-mono">{formatNumber(tokens.allTime)}</span> tokens
+          </div>
+        </div>
+      )}
+
+      {/* Explanation Modal */}
+      {showModal && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowModal(false)}
+        >
+          <div 
+            className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">About Equivalent API Cost</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-zinc-400 hover:text-zinc-300 transition-colors"
+                aria-label="Close modal"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-3 text-sm text-zinc-300">
+              <p>
+                You&apos;re using <strong className="text-white">{subscription?.plan}</strong>, which is a flat-rate subscription, not pay-per-token API billing.
+              </p>
+              <p>
+                The &quot;equivalent API cost&quot; shown here is <strong className="text-white">calculated for tracking purposes only</strong>. It helps you understand how much your usage would cost if you were using standard API billing.
+              </p>
+              <p className="text-zinc-400 text-xs border-t border-zinc-800 pt-3">
+                Your actual charges are based on your flat subscription rate. This dashboard tracks token usage to help you monitor activity and compare efficiency across different models.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowModal(false)}
+              className="mt-6 w-full py-2 px-4 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
+            >
+              Got it
+            </button>
           </div>
         </div>
       )}

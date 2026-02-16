@@ -87,6 +87,36 @@ export default function ChatPage() {
     inputRef.current?.focus();
   };
 
+  const deleteSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent selecting the chat
+    
+    if (!confirm('Delete this chat? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/chat?sessionId=${sessionId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Remove from sessions list
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        
+        // If this was the current session, clear it
+        if (currentSessionId === sessionId) {
+          setCurrentSessionId(null);
+          setMessages([]);
+        }
+      } else {
+        alert('Failed to delete chat');
+      }
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+      alert('Failed to delete chat');
+    }
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -207,22 +237,35 @@ export default function ChatPage() {
           ) : (
             <div className="p-2">
               {sessions.map((session) => (
-                <button
+                <div
                   key={session.id}
-                  onClick={() => setCurrentSessionId(session.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg mb-1 transition-colors ${
+                  className={`group relative rounded-lg mb-1 transition-colors ${
                     currentSessionId === session.id
                       ? 'bg-orange-500/20 border border-orange-500/30'
                       : 'hover:bg-zinc-800'
                   }`}
                 >
-                  <div className="text-sm text-zinc-200 truncate">{session.title}</div>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
-                    <span>{formatDate(session.updated_at)}</span>
-                    <span>•</span>
-                    <span>{session.message_count} msgs</span>
-                  </div>
-                </button>
+                  <button
+                    onClick={() => setCurrentSessionId(session.id)}
+                    className="w-full text-left px-3 py-2 pr-10"
+                  >
+                    <div className="text-sm text-zinc-200 truncate">{session.title}</div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
+                      <span>{formatDate(session.updated_at)}</span>
+                      <span>•</span>
+                      <span>{session.message_count} msgs</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => deleteSession(session.id, e)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded transition-all"
+                    title="Delete chat"
+                  >
+                    <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
               ))}
             </div>
           )}

@@ -101,85 +101,67 @@ export async function POST(request: NextRequest) {
     
     db.close();
 
-    // Send to OpenClaw gateway via sessions_send
-    const gatewayConfig = getGatewayConfig();
-    if (!gatewayConfig) {
-      return NextResponse.json({ error: 'Gateway not configured' }, { status: 500 });
-    }
+    // Send message to OpenClaw via queue bridge
+    const queueDir = '/root/clawd/queue/superclaw-messages';
+    const messageId = `msg-${now}-${Math.random().toString(36).substr(2, 9)}`;
+    const messagePath = join(queueDir, `${messageId}.json`);
+    const responsePath = join(queueDir, `${messageId}-response.json`);
 
-    const { port, token } = gatewayConfig;
-    
-    // Use the tool invoke endpoint to call sessions_send
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+    const queueMessage = {
+      id: messageId,
+      message: message,
+      sessionId: actualSessionId,
+      from: user.email,
+      timestamp: now,
+      status: 'pending',
+      responseFile: responsePath,
+    };
 
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/tool/invoke`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: 'sessions_send',
-          parameters: {
-            sessionKey: 'agent:main:main',
-            message: message,
-            timeoutSeconds: 55,
-          },
-        }),
-        signal: controller.signal,
-      });
+      writeFileSync(messagePath, JSON.stringify(queueMessage, null, 2));
 
-      clearTimeout(timeoutId);
+      // Wait for response (up to 30 seconds)
+      const maxWait = 30000;
+      const startTime = Date.now();
+      let response = null;
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        console.error('Gateway error:', response.status, errorText);
-        return NextResponse.json({ 
-          error: `Gateway error: ${response.status}`,
-          details: errorText,
-        }, { status: 500 });
+      while (Date.now() - startTime < maxWait) {
+        if (existsSync(responsePath)) {
+          response = JSON.parse(readFileSync(responsePath, 'utf8'));
+          break;
+        }
+        // Wait 500ms before checking again
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      const data = await response.json();
-      
-      // Extract response content
-      let assistantMessage = '';
-      if (data.result?.content) {
-        assistantMessage = data.result.content;
-      } else if (data.content) {
-        assistantMessage = data.content;
-      } else if (typeof data.result === 'string') {
-        assistantMessage = data.result;
-      } else {
-        assistantMessage = 'No response received';
+      if (!response) {
+        return NextResponse.json({
+          error: 'Request timed out',
+          message: 'The assistant is taking longer than expected to respond.',
+          sessionId: actualSessionId,
+        }, { status: 504 });
       }
 
-      // Save assistant response
+      // Save assistant response to database
       const db2 = getChatDb();
       db2.prepare(`
         INSERT INTO chat_messages (session_id, role, content, timestamp)
         VALUES (?, ?, ?, ?)
-      `).run(actualSessionId, 'assistant', assistantMessage, Date.now());
+      `).run(actualSessionId, 'assistant', response.reply, response.timestamp || Date.now());
       db2.close();
 
       return NextResponse.json({
-        message: assistantMessage,
+        reply: response.reply,
         sessionId: actualSessionId,
+        messageId: response.messageId,
       });
 
     } catch (error) {
-      clearTimeout(timeoutId);
-      
-      if (error instanceof Error && error.name === 'AbortError') {
-        return NextResponse.json({ error: 'Request timeout' }, { status: 408 });
-      }
-
-      console.error('Gateway request failed:', error);
-      return NextResponse.json({ 
-        error: 'Failed to communicate with gateway',
+      console.error('Queue bridge error:', error);
+      return NextResponse.json({
+        error: 'Failed to process message',
         details: error instanceof Error ? error.message : 'Unknown error',
+        sessionId: actualSessionId,
       }, { status: 500 });
     }
 
@@ -234,6 +216,53 @@ export async function GET(request: NextRequest) {
     console.error('Chat history error:', error);
     return NextResponse.json({ 
       error: 'Failed to retrieve chat history',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    }, { status: 500 });
+  }
+}
+
+// DELETE - Delete a chat session
+export async function DELETE(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
+
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
+    }
+
+    const db = getChatDb();
+    
+    // Verify session belongs to user
+    const session = db.prepare('SELECT user_id FROM chat_sessions WHERE id = ?').get(sessionId) as any;
+    if (!session) {
+      db.close();
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+    
+    if (session.user_id !== user.email) {
+      db.close();
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    // Delete messages first (foreign key constraint)
+    db.prepare('DELETE FROM chat_messages WHERE session_id = ?').run(sessionId);
+    
+    // Delete session
+    db.prepare('DELETE FROM chat_sessions WHERE id = ?').run(sessionId);
+    
+    db.close();
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Delete chat error:', error);
+    return NextResponse.json({ 
+      error: 'Failed to delete chat session',
       details: error instanceof Error ? error.message : 'Unknown error',
     }, { status: 500 });
   }

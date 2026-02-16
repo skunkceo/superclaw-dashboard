@@ -83,15 +83,16 @@ function normalizeModelName(modelId: string): string {
   // Strip provider prefix
   let normalized = modelId.replace(/^(anthropic|openai)\//, '');
   
-  // Map variants to canonical names
+  // Map variants to canonical names (preserve point versions)
   const modelMap: Record<string, string> = {
-    'claude-opus-4-20250514': 'claude-opus-4',
-    'claude-opus-4-5-20250514': 'claude-opus-4',
-    'claude-opus-4-6': 'claude-opus-4',
-    'claude-sonnet-4-20250514': 'claude-sonnet-4',
-    'claude-sonnet-4-5-20250514': 'claude-sonnet-4',
-    'claude-sonnet-4-5': 'claude-sonnet-4',
+    'claude-opus-4-20250514': 'claude-opus-4.0',
+    'claude-opus-4-5-20250514': 'claude-opus-4.5',
+    'claude-opus-4-6': 'claude-opus-4.6',
+    'claude-sonnet-4-20250514': 'claude-sonnet-4.0',
+    'claude-sonnet-4-5-20250514': 'claude-sonnet-4.5',
+    'claude-sonnet-4-5': 'claude-sonnet-4.5',
     'claude-haiku-3-5-20241022': 'claude-haiku-3.5',
+    'claude-haiku-4': 'claude-haiku-4.0',
   };
   
   return modelMap[normalized] || normalized;
@@ -157,7 +158,8 @@ export function parseSessionUsage(sessionsDir: string): AggregatedUsage {
       const output = usage.output || 0;
       const cacheRead = usage.cacheRead || 0;
       const cacheWrite = usage.cacheWrite || 0;
-      const total = usage.totalTokens || (input + output);
+      // ALWAYS calculate total as input + output (exclude cache reads/writes)
+      const total = input + output;
       const cost = usage.cost?.total || 0;
 
       // Add to allTime
