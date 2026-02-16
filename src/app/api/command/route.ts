@@ -97,44 +97,29 @@ export async function GET() {
       reports.push(...files);
     }
 
-    // Define agent team
-    const agents = [
-      {
-        id: 'clawd',
-        name: 'Clawd',
-        role: 'AI Cofounder - Strategy, execution, and autonomous work',
-        skills: ['WordPress', 'React', 'Next.js', 'SEO', 'Content', 'Business Strategy'],
-        active: true,
-      },
-      {
-        id: 'porter',
-        name: 'Porter',
-        role: 'Work Queue Manager - Assigns and coordinates tasks',
-        skills: ['Task Management', 'Prioritization', 'Agent Coordination'],
-        active: false,
-      },
-      {
-        id: 'content-writer',
-        name: 'Content Writer',
-        role: 'Blog posts, guides, and SEO content',
-        skills: ['SEO Writing', 'Keyword Research', 'Content Strategy'],
-        active: false,
-      },
-      {
-        id: 'developer',
-        name: 'Developer',
-        role: 'Code features, fix bugs, deploy updates',
-        skills: ['React', 'PHP', 'WordPress', 'Database', 'Git'],
-        active: false,
-      },
-      {
-        id: 'analyst',
-        name: 'Analyst',
-        role: 'Data analysis, reporting, insights',
-        skills: ['GA4', 'GSC', 'Data Analysis', 'SQL', 'Reporting'],
-        active: false,
-      },
-    ];
+    // Get agent definitions from database
+    let agents: Array<{ id: string; name: string; role: string; skills: string[]; description?: string; enabled?: boolean }> = [];
+    try {
+      const superclawDb = new Database('/root/.superclaw/superclaw.db');
+      const agentDefs = superclawDb.prepare('SELECT * FROM agent_definitions ORDER BY name').all();
+      agents = agentDefs.map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        role: a.description || 'Specialist Agent',
+        skills: JSON.parse(a.skills || '[]'),
+        active: a.enabled === 1,
+        color: a.color,
+        icon: a.icon,
+        soul: a.soul,
+        handoff_rules: JSON.parse(a.handoff_rules || '[]'),
+        spawn_count: a.spawn_count || 0,
+      }));
+      superclawDb.close();
+    } catch (err) {
+      console.error('Failed to load agent definitions:', err);
+      // Fallback to empty array if DB fails
+      agents = [];
+    }
 
     // Close DB
     if (db) db.close();

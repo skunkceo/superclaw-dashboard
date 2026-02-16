@@ -25,7 +25,9 @@ interface TasksDashboardProps {
       status: 'active' | 'idle' | 'done';
       lastActive: string;
       currentTask?: string | null;
+      channel?: string;
       model?: string;
+      queuedMessages?: number;
     };
   };
 }
@@ -130,13 +132,36 @@ export function TasksDashboard({ tasks }: TasksDashboardProps) {
       </div>
 
       {/* Current Main Session Activity */}
-      {tasks.mainSession && tasks.mainSession.currentTask && (
+      {tasks.mainSession && tasks.mainSession.status !== 'idle' && (
         <div className="mb-4 p-3 bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-lg">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-            <span className="text-sm font-medium text-orange-400">Main Session Active</span>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+              <span className="text-sm font-medium text-orange-400">Main Session Active</span>
+            </div>
+            {tasks.mainSession.queuedMessages !== undefined && tasks.mainSession.queuedMessages > 0 && (
+              <span className="text-xs text-orange-400/80 bg-orange-500/20 px-2 py-0.5 rounded">
+                {tasks.mainSession.queuedMessages} queued
+              </span>
+            )}
           </div>
-          <div className="text-sm text-zinc-300">{tasks.mainSession.currentTask}</div>
+          <div className="text-sm text-zinc-300">
+            {tasks.mainSession.currentTask ? (
+              <>
+                discussing "{tasks.mainSession.currentTask}"
+                {tasks.mainSession.channel && (
+                  <span className="text-zinc-500"> via {tasks.mainSession.channel}</span>
+                )}
+              </>
+            ) : (
+              <>
+                active
+                {tasks.mainSession.channel && (
+                  <span className="text-zinc-500"> via {tasks.mainSession.channel}</span>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 

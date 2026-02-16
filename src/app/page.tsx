@@ -68,8 +68,10 @@ interface DashboardData {
       lastActive: string;
       recentMessages?: number;
       currentTask?: string | null;
+      channel?: string;
       model?: string;
       totalTokens?: number;
+      queuedMessages?: number;
     };
     // Keep legacy fields for backward compatibility
     subAgents?: Array<{

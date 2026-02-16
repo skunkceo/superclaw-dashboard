@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getAllAgentDefinitions, createAgentDefinition } from '@/lib/db';
+import { initializeAgentMemory } from '@/lib/agent-souls';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -25,17 +26,42 @@ export async function POST(request: NextRequest) {
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   try {
+    // Initialize memory directory and generate default SOUL if not provided
+    let finalMemoryDir = memory_dir;
+    let finalSoul = soul;
+    
+    if (!finalMemoryDir) {
+      try {
+        finalMemoryDir = await initializeAgentMemory(
+          name,
+          description || 'Specialist Agent',
+          skills || [],
+          soul || undefined
+        );
+        // If soul wasn't provided, it was generated - read it back
+        if (!finalSoul && finalMemoryDir) {
+          const fs = await import('fs/promises');
+          const path = await import('path');
+          const soulPath = path.join(finalMemoryDir, 'SOUL.md');
+          finalSoul = await fs.readFile(soulPath, 'utf8');
+        }
+      } catch (memErr) {
+        console.error('Failed to initialize agent memory:', memErr);
+        // Continue without memory dir
+      }
+    }
+
     createAgentDefinition({
       id,
       name,
       description: description || null,
-      soul: soul || null,
+      soul: finalSoul || null,
       model: model || 'claude-sonnet-4-20250514',
       skills: JSON.stringify(skills || []),
       tools: JSON.stringify(tools || []),
       color: color || '#f97316',
       icon: icon || 'bot',
-      memory_dir: memory_dir || null,
+      memory_dir: finalMemoryDir || null,
       system_prompt: system_prompt || null,
       max_tokens: max_tokens || null,
       thinking: thinking || 'low',
@@ -44,7 +70,7 @@ export async function POST(request: NextRequest) {
       created_by: user.id,
     });
 
-    return NextResponse.json({ success: true, id });
+    return NextResponse.json({ success: true, id, memory_dir: finalMemoryDir });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     if (message.includes('UNIQUE')) {

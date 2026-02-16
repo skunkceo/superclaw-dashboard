@@ -424,6 +424,91 @@ export async function GET() {
   const formatTokens = (n: number) => Math.round(n);
   const formatCost = (n: number) => Math.round(n * 100) / 100;
 
+  // Build better main session context
+  let mainSessionData = null;
+  if (mainSession) {
+    // Extract last user/assistant exchange for context
+    const recentMsgs = mainSession.messages || [];
+    let snippet: string | null = null;
+    let channel = 'DM';
+    
+    // Parse channel from session key
+    if (mainSession.key.includes(':channel:')) {
+      const slackChannels: Record<string, string> = {
+        'C0ACV8Y8AHW': '#dev',
+        'C0ABZ068W22': '#dailies',
+        'C0AC4JZ0M44': '#marketing',
+        'C0ABKHH98VD': '#product',
+        'C0AC11G4N4A': '#support',
+        'C0AC06RAWG2': '#social',
+        'C0ADVJB9ETA': '#projects',
+        'C0ACBTVCWAY': '#progress',
+        'D0AC0T1M4KU': 'DM',
+        'C0AFE1STJSV': '#superclaw',
+      };
+      const parts = mainSession.key.split(':');
+      const channelIdx = parts.indexOf('channel');
+      const channelId = channelIdx >= 0 ? parts[channelIdx + 1] : '';
+      channel = slackChannels[channelId.toUpperCase()] || 'DM';
+    } else if (mainSession.displayName.includes('#')) {
+      channel = mainSession.displayName.split(' ')[0];
+    }
+    
+    // Find last substantive user message for context
+    for (let i = recentMsgs.length - 1; i >= 0; i--) {
+      const msg = recentMsgs[i];
+      if (msg.role === 'user' && msg.content && typeof msg.content === 'string') {
+        const text = msg.content.trim();
+        // Skip heartbeats and very short messages
+        if (!text.includes('HEARTBEAT') && text.length > 10) {
+          snippet = text.length > 60 ? text.substring(0, 57) + '...' : text;
+          break;
+        }
+      }
+    }
+    
+    // Try to get queued messages count from gateway
+    let queuedMessages = 0;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1000);
+      const gwRes = await fetch(`http://127.0.0.1:${gatewayPort}/api/sessions/list`, {
+        headers: { 'Authorization': `Bearer ${gatewayToken}` },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (gwRes.ok) {
+        const gwData = await gwRes.json();
+        const mainSess = gwData.sessions?.find((s: any) => s.key === 'agent:main:main');
+        queuedMessages = mainSess?.queuedMessages || 0;
+      }
+    } catch {
+      // Ignore - gateway might be busy
+    }
+    
+    mainSessionData = {
+      status: mainSession.status,
+      lastActive: formatLastActive(mainSession.updatedAt),
+      recentMessages: recentMsgs.length,
+      currentTask: snippet,
+      channel: channel,
+      model: mainSession.model,
+      totalTokens: mainSession.totalTokens,
+      queuedMessages: queuedMessages
+    };
+  } else if (mainActivity) {
+    mainSessionData = {
+      status: mainActivity.status,
+      lastActive: mainActivity.lastActive,
+      recentMessages: mainActivity.recentMessages,
+      currentTask: mainActivity.currentTask,
+      channel: 'DM',
+      model: 'unknown',
+      totalTokens: 0,
+      queuedMessages: 0
+    };
+  }
+
   return NextResponse.json({
     health: {
       status: gatewayHealth.healthy ? 'healthy' : 'offline',
@@ -504,21 +589,7 @@ export async function GET() {
         totalTokens: s.totalTokens,
         messages: s.messages?.slice(-2) || [] // Last 2 messages for preview
       })),
-      mainSession: mainSession ? {
-        status: mainSession.status,
-        lastActive: formatLastActive(mainSession.updatedAt),
-        recentMessages: mainSession.messages?.length || 0,
-        currentTask: mainSession.messages?.find((m: any) => m.role === 'user')?.content?.substring(0, 100) + '...' || null,
-        model: mainSession.model,
-        totalTokens: mainSession.totalTokens
-      } : {
-        status: mainActivity.status,
-        lastActive: mainActivity.lastActive,
-        recentMessages: mainActivity.recentMessages,
-        currentTask: mainActivity.currentTask,
-        model: 'unknown',
-        totalTokens: 0
-      },
+      mainSession: mainSessionData,
       activityFeed,
     },
     skills: getAvailableSkills(),
