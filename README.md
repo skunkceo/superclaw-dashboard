@@ -1,116 +1,79 @@
 # SuperClaw Dashboard
 
-A modern dashboard for monitoring and managing your AI companion powered by [OpenClaw](https://github.com/openclaw/openclaw).
+A beautiful web dashboard for monitoring and managing your OpenClaw installation.
 
-## Features
+## Free vs Pro
 
-- **Real-time Agent Monitoring** — See main agent status and active sub-agents
-- **Token Usage Tracking** — Monitor costs across models (Opus, Sonnet, Haiku)
-- **Work Queue Management** — View backlog, in-progress tasks, and spawn agents
-- **Cron Job Management** — Schedule and manage recurring tasks
-- **Chat Interface** — Direct conversation with your AI
-- **Workspace Browser** — View and edit workspace files (AGENTS.md, SOUL.md, etc.)
-- **User Management** — Role-based access control (admin, edit, view)
-- **Update Notifications** — Get notified when new versions are available
+SuperClaw is split into two packages:
+
+- **superclaw-dashboard** (this repo, public) - Free tier features
+- **superclaw-dashboard-pro** (private repo) - Pro features
+
+### Free Features
+- Dashboard overview
+- Chat interface
+- Sessions management
+- Agent monitoring
+- Workspace file browser
+- Basic error tracking
+
+### Pro Features (requires license)
+- **Smart Router** - AI model selection and routing
+- **Settings** - License management and advanced configuration
+- **Team** - Multi-user team management
+- **Tasks** - Project and task tracking
+- **Stats** - Advanced analytics and insights
+- **Skills** - Skills marketplace
+- **Command** - Command palette
+- **Scheduled** - Job scheduling
 
 ## Installation
 
-### Via SuperClaw CLI (Recommended)
-
+### via SuperClaw CLI (recommended)
 ```bash
-npx @skunkceo/superclaw init
+npm install -g @superclaw/cli
+superclaw install
 ```
 
-This will set up a complete workspace including the dashboard.
+The CLI will automatically install Pro features if you have a valid license.
 
 ### Manual Installation
-
 ```bash
-npm install @skunkceo/superclaw-dashboard
-```
-
-## Configuration
-
-The dashboard connects to your local OpenClaw gateway. It reads configuration from:
-
-- `~/.openclaw/openclaw.json` — Gateway port and auth token
-- Workspace files — AGENTS.md, SOUL.md, USER.md, etc.
-
-No API keys or secrets are stored in the dashboard — all sensitive config comes from your local OpenClaw installation.
-
-## Running
-
-### Development
-
-```bash
-npm run dev
-```
-
-### Production
-
-```bash
+git clone https://github.com/skunkceo/superclaw-dashboard
+cd superclaw-dashboard
+npm install
 npm run build
-npm run start
+npm start
 ```
 
-Or use PM2:
+**To add Pro features manually:**
+```bash
+# Requires access to private pro repo
+git clone https://github.com/skunkceo/superclaw-dashboard-pro /tmp/pro
+cd /tmp/pro
+node install.js
+```
+
+## Development
 
 ```bash
-pm2 start npm --name "superclaw-dashboard" -- start
+npm run dev     # Start dev server on port 3000
+npm run build   # Production build
+npm start       # Start production server
 ```
 
-## User Management
+## Architecture
 
-Create your first admin user:
+SuperClaw dashboard connects to your local OpenClaw gateway to fetch data and manage your AI agents. It does not store any data itself - it's a pure UI layer.
 
-```bash
-superclaw setup
-```
-
-Add additional users:
-
-```bash
-superclaw setup user add user@example.com --role edit
-```
-
-Roles:
-- **admin** — Full access, can manage users
-- **edit** — Can edit workspace files and chat
-- **view** — Read-only access to dashboard
-
-## Updating
-
-The dashboard will show a notification banner when updates are available.
-
-```bash
-superclaw update
-```
-
-Or check for updates without installing:
-
-```bash
-superclaw update --check
-```
-
-## Tech Stack
-
-- Next.js 16
-- React 19
-- Tailwind CSS 4
-- SQLite (better-sqlite3)
+**Tech stack:**
+- Next.js 15
 - TypeScript
-
-## Requirements
-
-- Node.js 18+
-- OpenClaw or OpenClaw running locally
+- Tailwind CSS
+- SQLite (for user auth only)
 
 ## License
 
 MIT
 
-## Links
-
-- [SuperClaw CLI](https://github.com/skunkceo/superclaw-cli)
-- [OpenClaw](https://github.com/openclaw/openclaw)
-- [Documentation](https://docs.clawd.bot)
+**Pro package:** Proprietary - requires valid license from skunkglobal.com
