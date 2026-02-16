@@ -1,38 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLicenseByKey, activateLicense } from '@/lib/db';
+import { getCurrentUser } from '@/lib/auth';
+import { validateLicenseKey, saveLicense } from '@/lib/license';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    const body = await req.json();
-    const { licenseKey, email } = body;
+    const { licenseKey } = await request.json();
 
-    if (!licenseKey) {
-      return NextResponse.json({ error: 'License key required' }, { status: 400 });
+    if (!licenseKey || typeof licenseKey !== 'string') {
+      return NextResponse.json({ error: 'License key is required' }, { status: 400 });
     }
 
-    const license = getLicenseByKey(licenseKey);
+    // Validate the license key
+    const result = await validateLicenseKey(licenseKey, user.email);
 
-    if (!license) {
-      return NextResponse.json({ error: 'Invalid license key' }, { status: 404 });
+    if (result.valid) {
+      // Save license locally
+      saveLicense({
+        key: licenseKey,
+        email: user.email,
+        status: 'active',
+        activatedAt: Date.now(),
+        features: result.features || ['pro'],
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        features: result.features,
+      });
+    } else {
+      return NextResponse.json({
+        success: false,
+        message: result.message,
+      }, { status: 400 });
     }
-
-    if (license.status !== 'active') {
-      return NextResponse.json({ error: 'License is inactive or expired' }, { status: 403 });
-    }
-
-    // If not activated yet, activate it now
-    if (!license.activated_at) {
-      activateLicense(licenseKey, email);
-    }
-
-    return NextResponse.json({
-      valid: true,
-      tier: license.tier,
-      activatedAt: license.activated_at || Date.now(),
-      expiresAt: license.expires_at,
-    });
-  } catch (error) {
+  } catch (error: any) {
     console.error('License validation error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to validate license',
+      details: error.message,
+    }, { status: 500 });
   }
 }

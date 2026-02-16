@@ -1,26 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getActiveLicense } from '@/lib/db';
+import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth';
+import { getLicense } from '@/lib/license';
 
-export async function GET(req: NextRequest) {
-  try {
-    const license = getActiveLicense();
-
-    if (!license) {
-      return NextResponse.json({
-        hasLicense: false,
-        tier: 'free',
-      });
-    }
-
-    return NextResponse.json({
-      hasLicense: true,
-      tier: license.tier,
-      activatedAt: license.activated_at,
-      expiresAt: license.expires_at,
-      email: license.email,
-    });
-  } catch (error) {
-    console.error('License status error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const license = getLicense();
+
+  if (!license) {
+    return NextResponse.json({
+      active: false,
+      tier: 'free',
+      features: [],
+    });
+  }
+
+  // Check if expired
+  const isExpired = license.expiresAt && license.expiresAt < Date.now();
+
+  return NextResponse.json({
+    active: license.status === 'active' && !isExpired,
+    tier: license.status === 'active' && !isExpired ? 'pro' : 'free',
+    features: license.features,
+    activatedAt: license.activatedAt,
+    expiresAt: license.expiresAt,
+    email: license.email,
+  });
 }
