@@ -524,6 +524,16 @@ export async function GET() {
     };
   }
 
+  // Count sub-agents that are actually running work (not just idle sessions)
+  const runningSubAgents = activeSessions.filter((s: any) => 
+    s.kind === 'sub-agent' && s.status !== 'done'
+  ).length;
+  
+  // Count ALL open sessions (for context, not as "active work")
+  const openSessions = activeSessions.filter((s: any) => 
+    s.status === 'active' || s.status === 'idle'
+  ).length;
+
   return NextResponse.json({
     health: {
       status: gatewayHealth.healthy ? 'healthy' : 'offline',
@@ -591,7 +601,9 @@ export async function GET() {
       apiKeys,
     },
     tasks: {
-      active: activeSessions.filter((s: any) => s.status === 'active' || s.status === 'idle').length,
+      active: openSessions, // Keep for backwards compat
+      runningSubAgents, // NEW: actual work in progress
+      openSessions, // NEW: all open sessions (idle + active)
       completed: activeSessions.filter((s: any) => s.status === 'done').length,
       subAgents,
       allSessions: activeSessions.map((s: any) => ({

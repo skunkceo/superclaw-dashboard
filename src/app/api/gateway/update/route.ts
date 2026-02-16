@@ -12,6 +12,10 @@ export async function POST() {
   }
 
   try {
+    // Get current version before update
+    const { stdout: versionBefore } = await execAsync('openclaw --version');
+    const currentVersion = versionBefore.trim();
+
     // Update OpenClaw globally via npm as mike user
     const npmPath = '/home/mike/.nvm/versions/node/v24.13.0/bin/npm';
     await execAsync(
@@ -19,17 +23,31 @@ export async function POST() {
       { timeout: 120000 } // 120 second timeout for npm
     );
 
-    // Restart the gateway using PM2 (simpler than openclaw gateway restart)
-    const pm2Path = '/home/mike/.nvm/versions/node/v24.13.0/bin/pm2';
-    await execAsync(
-      `sudo -u mike ${pm2Path} restart clawdbot`,
-      { timeout: 30000 }
-    );
+    // Get new version
+    const { stdout: versionAfter } = await execAsync('openclaw --version');
+    const newVersion = versionAfter.trim();
 
-    return NextResponse.json({
+    // Respond immediately BEFORE restarting (so client gets the response)
+    const response = NextResponse.json({
       success: true,
-      message: 'Update completed successfully. Gateway restarted.'
+      message: `Updated from ${currentVersion} to ${newVersion}. Gateway restarting...`,
+      oldVersion: currentVersion,
+      newVersion: newVersion,
+      restarting: true
     });
+
+    // Fire-and-forget restart after response is queued
+    // Use setImmediate to ensure response is sent first
+    setImmediate(() => {
+      const pm2Path = '/home/mike/.nvm/versions/node/v24.13.0/bin/pm2';
+      exec(`sudo -u mike ${pm2Path} restart clawdbot`, (error) => {
+        if (error) {
+          console.error('PM2 restart error:', error);
+        }
+      });
+    });
+
+    return response;
   } catch (error: any) {
     console.error('Gateway update failed:', error);
     
@@ -46,7 +64,8 @@ export async function POST() {
     
     return NextResponse.json({
       success: false,
-      message: userMessage
+      message: userMessage,
+      error: error.message
     }, { status: 500 });
   }
 }

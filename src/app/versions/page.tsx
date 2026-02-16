@@ -32,7 +32,8 @@ export default function VersionsPage() {
   const [updating, setUpdating] = useState(false);
   const [updateResult, setUpdateResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [activeAgents, setActiveAgents] = useState(0);
+  const [runningSubAgents, setRunningSubAgents] = useState(0);
+  const [openSessions, setOpenSessions] = useState(0);
 
   useEffect(() => {
     fetch('/api/versions')
@@ -49,24 +50,43 @@ export default function VersionsPage() {
   };
 
   const openUpdateModal = async () => {
-    // Fetch active agent count
+    // Fetch actual running work count
     try {
       const res = await fetch('/api/status');
       if (res.ok) {
         const status = await res.json();
-        const active = status.tasks?.active || 0;
-        setActiveAgents(active);
+        setRunningSubAgents(status.tasks?.runningSubAgents || 0);
+        setOpenSessions(status.tasks?.openSessions || 0);
       }
     } catch {
-      setActiveAgents(0);
+      setRunningSubAgents(0);
+      setOpenSessions(0);
     }
     setShowUpdateModal(true);
+  };
+
+  const pollForReconnection = async (maxAttempts = 20): Promise<boolean> => {
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s between attempts
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch('/api/status', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) return true;
+      } catch {
+        // Continue polling
+      }
+    }
+    return false;
   };
 
   const runUpdate = async () => {
     setShowUpdateModal(false);
     setUpdating(true);
     setUpdateResult(null);
+
+    const oldVersion = data?.openclaw.current;
 
     try {
       const response = await fetch('/api/gateway/update', {
@@ -75,18 +95,52 @@ export default function VersionsPage() {
 
       const result = await response.json();
 
-      if (result.success) {
+      if (result.success && result.restarting) {
+        // Gateway is restarting - wait for reconnection
+        setUpdateResult({
+          success: true,
+          message: 'Gateway restarting... waiting for reconnection'
+        });
+
+        const reconnected = await pollForReconnection();
+        
+        if (reconnected) {
+          // Check new version
+          const versionRes = await fetch('/api/versions');
+          if (versionRes.ok) {
+            const versionData = await versionRes.json();
+            setData(versionData);
+            
+            if (versionData.openclaw.current !== oldVersion) {
+              setUpdateResult({
+                success: true,
+                message: `Successfully updated from ${oldVersion} to ${versionData.openclaw.current}`
+              });
+            } else {
+              setUpdateResult({
+                success: true,
+                message: 'Gateway restarted (already on latest version)'
+              });
+            }
+          }
+        } else {
+          setUpdateResult({
+            success: false,
+            message: 'Update may have succeeded but gateway did not reconnect. Please refresh manually.'
+          });
+        }
+      } else if (result.success) {
         setUpdateResult({
           success: true,
           message: result.message || 'Update completed successfully'
         });
-        // Reload version data after a delay
+        // Reload version data
         setTimeout(() => {
           fetch('/api/versions')
             .then(res => res.json())
             .then(setData)
             .catch(console.error);
-        }, 3000);
+        }, 2000);
       } else {
         setUpdateResult({
           success: false,
@@ -341,7 +395,7 @@ export default function VersionsPage() {
                     This will update OpenClaw to the latest version and restart the gateway.
                   </p>
                   
-                  {activeAgents > 0 && (
+                  {runningSubAgents > 0 && (
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-3">
                       <div className="flex items-start gap-2">
                         <svg className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -349,10 +403,28 @@ export default function VersionsPage() {
                         </svg>
                         <div>
                           <p className="text-yellow-400 font-medium text-sm mb-1">
-                            {activeAgents} active agent{activeAgents !== 1 ? 's' : ''} running
+                            {runningSubAgents} sub-agent{runningSubAgents !== 1 ? 's' : ''} actively working
                           </p>
                           <p className="text-yellow-400/80 text-xs">
-                            Active agents should finish their work before updating. Any running tasks may be interrupted.
+                            Running tasks may be interrupted. Consider waiting for them to finish.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {runningSubAgents === 0 && openSessions > 0 && (
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-3">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                          <p className="text-blue-400 font-medium text-sm mb-1">
+                            {openSessions} open session{openSessions !== 1 ? 's' : ''}
+                          </p>
+                          <p className="text-blue-400/80 text-xs">
+                            Chat sessions will reconnect automatically after restart. No active work in progress.
                           </p>
                         </div>
                       </div>
