@@ -29,8 +29,8 @@ function getGatewayConfig() {
 
 // Get or create chat database
 function getChatDb() {
-  const dbPath = '/root/.superclaw/chat.db';
-  const dbDir = '/root/.superclaw';
+  const dbDir = process.env.SUPERCLAW_DATA_DIR || join(process.env.HOME || '/root', '.superclaw');
+  const dbPath = join(dbDir, 'chat.db');
   
   if (!existsSync(dbDir)) {
     mkdirSync(dbDir, { recursive: true });
