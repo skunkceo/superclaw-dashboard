@@ -84,7 +84,7 @@ export default function TokensPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Tokens & Usage</h1>
+        <h1 className="text-3xl font-bold mb-6">Stats & Usage</h1>
 
         {/* Current Model */}
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-6 mb-6">
