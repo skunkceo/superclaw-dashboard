@@ -80,7 +80,7 @@ export default function UpgradePage() {
         <div className="max-w-md mx-auto">
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-8">
             <div className="text-center mb-8">
-              <div className="text-5xl font-bold mb-2">$49</div>
+              <div className="text-5xl font-bold mb-2">$99</div>
               <div className="text-gray-400">One-time payment</div>
               <div className="text-sm text-orange-500 mt-2">Lifetime access • No subscription</div>
             </div>

@@ -27,6 +27,8 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -87,33 +89,40 @@ export default function ChatPage() {
     inputRef.current?.focus();
   };
 
-  const deleteSession = async (sessionId: string, e: React.MouseEvent) => {
+  const openDeleteModal = (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent selecting the chat
-    
-    if (!confirm('Delete this chat? This cannot be undone.')) {
-      return;
-    }
+    setSessionToDelete(sessionId);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!sessionToDelete) return;
 
     try {
-      const response = await fetch(`/api/chat?sessionId=${sessionId}`, {
+      const response = await fetch(`/api/chat?sessionId=${sessionToDelete}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
         // Remove from sessions list
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        setSessions(prev => prev.filter(s => s.id !== sessionToDelete));
         
         // If this was the current session, clear it
-        if (currentSessionId === sessionId) {
+        if (currentSessionId === sessionToDelete) {
           setCurrentSessionId(null);
           setMessages([]);
         }
+        
+        // Close modal
+        setDeleteModalOpen(false);
+        setSessionToDelete(null);
       } else {
-        alert('Failed to delete chat');
+        // Could add error state here instead of alert
+        setDeleteModalOpen(false);
       }
     } catch (err) {
       console.error('Failed to delete session:', err);
-      alert('Failed to delete chat');
+      setDeleteModalOpen(false);
     }
   };
 
@@ -257,7 +266,7 @@ export default function ChatPage() {
                     </div>
                   </button>
                   <button
-                    onClick={(e) => deleteSession(session.id, e)}
+                    onClick={(e) => openDeleteModal(session.id, e)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded transition-all"
                     title="Delete chat"
                   >
@@ -401,6 +410,52 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" 
+            onClick={() => setDeleteModalOpen(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-white mb-2">
+                      Delete Chat?
+                    </h3>
+                    <p className="text-zinc-400 text-sm">
+                      This will permanently delete this conversation and all its messages. This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setDeleteModalOpen(false)}
+                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                  >
+                    Delete Chat
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
