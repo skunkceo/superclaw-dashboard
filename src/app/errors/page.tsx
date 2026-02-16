@@ -10,6 +10,7 @@ interface ErrorEntry {
   tool: string;
   error: string;
   errorType: string;
+  severity: 'error' | 'warning';
   canSelfHeal: boolean;
   selfHealAction?: string;
 }
@@ -27,6 +28,7 @@ export default function ErrorsPage() {
   const [loading, setLoading] = useState(true);
   const [healing, setHealing] = useState(false);
   const [hours, setHours] = useState(24);
+  const [severityFilter, setSeverityFilter] = useState<'all' | 'error' | 'warning'>('all');
 
   const fetchErrors = async () => {
     setLoading(true);
@@ -89,24 +91,25 @@ export default function ErrorsPage() {
     }
   };
 
-  const getErrorColor = (errorType: string) => {
-    switch (errorType) {
-      case 'missing_memory_file': return 'text-yellow-600';
-      case 'missing_database_table': return 'text-red-600';
-      case 'permission_error': return 'text-orange-600';
-      default: return 'text-gray-600';
-    }
+  const getErrorColor = (severity: 'error' | 'warning') => {
+    return severity === 'error' ? 'text-red-500' : 'text-yellow-500';
   };
 
   const getErrorIcon = (errorType: string) => {
-    switch (errorType) {
-      case 'missing_memory_file': return '📝';
-      case 'missing_database_table': return '🗄️';
-      case 'permission_error': return '🔒';
-      case 'path_type_mismatch': return '📁';
-      default: return '⚠️';
-    }
+    // No icons - Sam's preference
+    return null;
   };
+
+  const getSeverityBadge = (severity: 'error' | 'warning') => {
+    return severity === 'error' 
+      ? <span className="px-2 py-0.5 bg-red-600/20 text-red-400 text-xs rounded font-medium">ERROR</span>
+      : <span className="px-2 py-0.5 bg-yellow-600/20 text-yellow-400 text-xs rounded font-medium">WARNING</span>;
+  };
+
+  // Filter errors by severity
+  const filteredErrors = data?.errors.filter(err => 
+    severityFilter === 'all' || err.severity === severityFilter
+  ) || [];
 
   if (loading) {
     return (
@@ -132,6 +135,16 @@ export default function ErrorsPage() {
         <h1 className="text-2xl font-bold">System Errors</h1>
         <div className="flex items-center gap-4">
           <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value as 'all' | 'error' | 'warning')}
+            className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm"
+          >
+            <option value="all">All</option>
+            <option value="error">Errors Only</option>
+            <option value="warning">Warnings Only</option>
+          </select>
+          
+          <select
             value={hours}
             onChange={(e) => setHours(parseInt(e.target.value))}
             className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm"
@@ -156,20 +169,29 @@ export default function ErrorsPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-1">Total Errors</div>
+          <div className="text-gray-400 text-sm mb-1">Total</div>
           <div className="text-3xl font-bold">{data.total}</div>
         </div>
         
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-1">Self-Healable</div>
-          <div className="text-3xl font-bold text-green-500">{data.healable}</div>
+        <div className="bg-gray-800 border border-red-700/50 rounded-lg p-4">
+          <div className="text-gray-400 text-sm mb-1">Errors</div>
+          <div className="text-3xl font-bold text-red-500">
+            {data.errors.filter(e => e.severity === 'error').length}
+          </div>
         </div>
         
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-1">Error Types</div>
-          <div className="text-3xl font-bold">{Object.keys(data.summary).length}</div>
+        <div className="bg-gray-800 border border-yellow-700/50 rounded-lg p-4">
+          <div className="text-gray-400 text-sm mb-1">Warnings</div>
+          <div className="text-3xl font-bold text-yellow-500">
+            {data.errors.filter(e => e.severity === 'warning').length}
+          </div>
+        </div>
+        
+        <div className="bg-gray-800 border border-green-700/50 rounded-lg p-4">
+          <div className="text-gray-400 text-sm mb-1">Self-Healable</div>
+          <div className="text-3xl font-bold text-green-500">{data.healable}</div>
         </div>
       </div>
 
@@ -179,12 +201,9 @@ export default function ErrorsPage() {
           <h2 className="text-lg font-semibold mb-3">Error Types</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Object.entries(data.summary).map(([type, count]) => (
-              <div key={type} className="flex items-center gap-2">
-                <span className="text-xl">{getErrorIcon(type)}</span>
-                <div>
-                  <div className="text-sm font-medium">{type.replace(/_/g, ' ')}</div>
-                  <div className="text-gray-400 text-xs">{count} occurrence{count > 1 ? 's' : ''}</div>
-                </div>
+              <div key={type}>
+                <div className="text-sm font-medium">{type.replace(/_/g, ' ')}</div>
+                <div className="text-gray-400 text-xs">{count} occurrence{count > 1 ? 's' : ''}</div>
               </div>
             ))}
           </div>
@@ -206,21 +225,24 @@ export default function ErrorsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.errors.length === 0 ? (
+              {filteredErrors.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center p-8 text-gray-400">
-                    No errors found in the selected time range 🎉
+                    {severityFilter === 'all' 
+                      ? 'No errors found in the selected time range'
+                      : `No ${severityFilter}s found in the selected time range`
+                    }
                   </td>
                 </tr>
               ) : (
-                data.errors.map((err, idx) => (
+                filteredErrors.map((err, idx) => (
                   <tr key={idx} className="border-b border-gray-700 hover:bg-gray-750 transition">
                     <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{getErrorIcon(err.errorType)}</span>
-                        <span className={`text-xs font-mono ${getErrorColor(err.errorType)}`}>
+                      <div className="flex flex-col gap-1.5">
+                        <span className={`text-xs font-mono ${getErrorColor(err.severity)}`}>
                           {err.errorType}
                         </span>
+                        {getSeverityBadge(err.severity)}
                       </div>
                     </td>
                     <td className="p-4">

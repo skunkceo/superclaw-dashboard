@@ -21,18 +21,27 @@ interface ErrorEntry {
   tool: string;
   error: string;
   errorType: string;
+  severity: 'error' | 'warning';
   canSelfHeal: boolean;
   selfHealAction?: string;
 }
 
-function classifyError(tool: string, error: string): { errorType: string; canSelfHeal: boolean; selfHealAction?: string } {
+function classifyError(tool: string, error: string): { errorType: string; severity: 'error' | 'warning'; canSelfHeal: boolean; selfHealAction?: string } {
   // Missing file errors
-  if (error.includes('ENOENT') && error.includes('memory/')) {
-    const match = error.match(/memory\/(\d{4}-\d{2}-\d{2})\.md/);
+  if (error.includes('ENOENT')) {
+    if (error.includes('memory/')) {
+      const match = error.match(/memory\/(\d{4}-\d{2}-\d{2})\.md/);
+      return {
+        errorType: 'missing_memory_file',
+        severity: 'warning',
+        canSelfHeal: true,
+        selfHealAction: match ? `create memory/${match[1]}.md` : undefined,
+      };
+    }
     return {
-      errorType: 'missing_memory_file',
-      canSelfHeal: true,
-      selfHealAction: match ? `create memory/${match[1]}.md` : undefined,
+      errorType: 'file_not_found',
+      severity: 'error',
+      canSelfHeal: false,
     };
   }
   
@@ -41,7 +50,8 @@ function classifyError(tool: string, error: string): { errorType: string; canSel
     const match = error.match(/no such table: (\w+)/);
     return {
       errorType: 'missing_database_table',
-      canSelfHeal: false, // Requires schema knowledge
+      severity: 'error',
+      canSelfHeal: false,
       selfHealAction: match ? `needs manual schema fix for table: ${match[1]}` : undefined,
     };
   }
@@ -50,6 +60,7 @@ function classifyError(tool: string, error: string): { errorType: string; canSel
   if (error.includes('EISDIR') || error.includes('ENOTDIR')) {
     return {
       errorType: 'path_type_mismatch',
+      severity: 'error',
       canSelfHeal: false,
     };
   }
@@ -58,11 +69,90 @@ function classifyError(tool: string, error: string): { errorType: string; canSel
   if (error.includes('EACCES') || error.includes('Permission denied')) {
     return {
       errorType: 'permission_error',
+      severity: 'error',
       canSelfHeal: false,
     };
   }
   
-  return { errorType: 'unknown', canSelfHeal: false };
+  // Network/timeout errors
+  if (error.includes('ETIMEDOUT') || error.includes('ECONNREFUSED') || error.includes('ENOTFOUND')) {
+    return {
+      errorType: 'network_error',
+      severity: 'warning',
+      canSelfHeal: false,
+    };
+  }
+  
+  // Rate limiting
+  if (error.includes('rate limit') || error.includes('429')) {
+    return {
+      errorType: 'rate_limit',
+      severity: 'warning',
+      canSelfHeal: false,
+    };
+  }
+  
+  // Command execution failures
+  if (error.includes('Command exited with code') || error.includes('Command failed')) {
+    return {
+      errorType: 'command_failed',
+      severity: 'warning',
+      canSelfHeal: false,
+    };
+  }
+  
+  // API errors
+  if (error.includes('401') || error.includes('Unauthorized')) {
+    return {
+      errorType: 'auth_error',
+      severity: 'error',
+      canSelfHeal: false,
+    };
+  }
+  
+  if (error.includes('403') || error.includes('Forbidden')) {
+    return {
+      errorType: 'forbidden',
+      severity: 'error',
+      canSelfHeal: false,
+    };
+  }
+  
+  if (error.includes('404') || error.includes('Not Found')) {
+    return {
+      errorType: 'not_found',
+      severity: 'warning',
+      canSelfHeal: false,
+    };
+  }
+  
+  if (error.includes('500') || error.includes('Internal Server Error')) {
+    return {
+      errorType: 'server_error',
+      severity: 'error',
+      canSelfHeal: false,
+    };
+  }
+  
+  // Parse errors
+  if (error.includes('JSON.parse') || error.includes('Unexpected token') || error.includes('SyntaxError')) {
+    return {
+      errorType: 'parse_error',
+      severity: 'error',
+      canSelfHeal: false,
+    };
+  }
+  
+  // Warnings that shouldn't block
+  if (error.includes('deprecated') || error.includes('warning')) {
+    return {
+      errorType: 'deprecation_warning',
+      severity: 'warning',
+      canSelfHeal: false,
+    };
+  }
+  
+  return { errorType: 'unclassified', severity: 'error', canSelfHeal: false };
 }
 
 export async function GET(request: NextRequest) {
@@ -130,7 +220,7 @@ export async function GET(request: NextRequest) {
 
         const tool = entry.message.details.tool || entry.message.toolName || 'unknown';
         const error = entry.message.details.error || '';
-        const { errorType, canSelfHeal, selfHealAction } = classifyError(tool, error);
+        const { errorType, severity, canSelfHeal, selfHealAction } = classifyError(tool, error);
 
         errors.push({
           sessionId: sessionId || file.replace('.jsonl', ''),
@@ -139,6 +229,7 @@ export async function GET(request: NextRequest) {
           tool,
           error,
           errorType,
+          severity,
           canSelfHeal,
           selfHealAction,
         });
