@@ -187,10 +187,10 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex">
+    <div className="h-screen bg-zinc-950 text-white flex overflow-hidden">
       {/* Sidebar - Chat History */}
-      <div className={`${sidebarOpen ? 'w-80' : 'w-0'} border-r border-zinc-800 bg-zinc-900/50 flex-shrink-0 transition-all duration-300 overflow-hidden`}>
-        <div className="p-4 border-b border-zinc-800">
+      <div className={`${sidebarOpen ? 'w-80' : 'w-0'} border-r border-zinc-800 bg-zinc-900/50 flex-shrink-0 transition-all duration-300 overflow-hidden flex flex-col h-full relative`}>
+        <div className="p-4 border-b border-zinc-800 flex-shrink-0">
           <button
             onClick={startNewChat}
             className="w-full px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg font-medium transition-all"
@@ -199,7 +199,7 @@ export default function ChatPage() {
           </button>
         </div>
         
-        <div className="overflow-y-auto h-[calc(100vh-140px)]">
+        <div className="overflow-y-auto flex-1">
           {sessions.length === 0 ? (
             <div className="p-4 text-center text-zinc-500 text-sm">
               No chat history yet
@@ -228,7 +228,7 @@ export default function ChatPage() {
           )}
         </div>
         
-        <div className="absolute bottom-4 left-4 right-4 border-t border-zinc-800 pt-4">
+        <div className="border-t border-zinc-800 p-4 flex-shrink-0">
           <Link href="/" className="flex items-center gap-2 text-zinc-400 hover:text-orange-400 transition-colors text-sm">
             <LobsterLogo className="w-5 h-5" />
             <span>← Back to Dashboard</span>
