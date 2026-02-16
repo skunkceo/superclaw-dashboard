@@ -51,11 +51,21 @@ export async function PUT(
   if (!agent) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const body = await request.json();
-  const allowed = ['name', 'description', 'soul', 'model', 'skills', 'tools', 'color', 'icon', 'memory_dir', 'system_prompt', 'max_tokens', 'thinking'];
+  
+  // Special handling for Porter agent - cannot be disabled
+  if (body.enabled === false && (agent.name === 'Porter' || agent.name.toLowerCase().includes('porter'))) {
+    return NextResponse.json({ error: 'Porter agent cannot be disabled - it routes tasks to specialist agents' }, { status: 400 });
+  }
+  
+  const allowed = ['name', 'description', 'soul', 'model', 'skills', 'tools', 'color', 'icon', 'memory_dir', 'system_prompt', 'max_tokens', 'thinking', 'enabled', 'handoff_rules'];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) {
-      updates[key] = key === 'skills' || key === 'tools' ? JSON.stringify(body[key]) : body[key];
+      if (key === 'skills' || key === 'tools' || key === 'handoff_rules') {
+        updates[key] = JSON.stringify(body[key]);
+      } else {
+        updates[key] = body[key];
+      }
     }
   }
 

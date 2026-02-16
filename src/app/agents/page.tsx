@@ -24,6 +24,7 @@ interface AgentDef {
   system_prompt: string | null;
   thinking: string;
   handoff_rules: string;
+  enabled: boolean;
   spawn_count: number;
   created_at: number;
 }
@@ -83,12 +84,13 @@ export default function AgentsPage() {
   const [spawnTask, setSpawnTask] = useState('');
   const [spawnTarget, setSpawnTarget] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [togglingAgent, setTogglingAgent] = useState<string | null>(null);
 
   // Form state
   const [form, setForm] = useState({
     name: '', description: '', soul: '', model: 'claude-sonnet-4-20250514',
     icon: 'bot', color: '#f97316', thinking: 'low', system_prompt: '',
-    skills: '', tools: '', handoff_rules: '',
+    skills: '', tools: '', handoff_rules: '', enabled: true,
   });
 
   const fetchData = useCallback(async () => {
@@ -126,7 +128,7 @@ export default function AgentsPage() {
   }, [toast]);
 
   const resetForm = () => {
-    setForm({ name: '', description: '', soul: '', model: 'claude-sonnet-4-20250514', icon: 'bot', color: '#f97316', thinking: 'low', system_prompt: '', skills: '', tools: '', handoff_rules: '' });
+    setForm({ name: '', description: '', soul: '', model: 'claude-sonnet-4-20250514', icon: 'bot', color: '#f97316', thinking: 'low', system_prompt: '', skills: '', tools: '', handoff_rules: '', enabled: true });
     setEditAgent(null);
   };
 
@@ -143,6 +145,7 @@ export default function AgentsPage() {
       skills: JSON.parse(agent.skills || '[]').join(', '),
       tools: JSON.parse(agent.tools || '[]').join(', '),
       handoff_rules: JSON.parse(agent.handoff_rules || '[]').join('\n'),
+      enabled: agent.enabled,
     });
     setEditAgent(agent);
     setShowCreate(true);
@@ -220,6 +223,38 @@ export default function AgentsPage() {
     }
   };
 
+  const toggleAgent = async (agentId: string, currentState: boolean) => {
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return;
+
+    // Check if trying to disable Porter
+    if (!currentState && (agent.name === 'Porter' || agent.name.toLowerCase().includes('porter'))) {
+      setToast({ type: 'error', msg: 'Porter cannot be disabled - it routes tasks to specialist agents' });
+      return;
+    }
+
+    setTogglingAgent(agentId);
+    try {
+      const res = await fetch(`/api/agents/definitions/${agentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !currentState }),
+      });
+      
+      if (res.ok) {
+        setToast({ type: 'success', msg: `${agent.name} ${!currentState ? 'enabled' : 'disabled'}` });
+        fetchData(); // Refresh data
+      } else {
+        const data = await res.json();
+        setToast({ type: 'error', msg: data.error || 'Failed to toggle agent' });
+      }
+    } catch (error) {
+      setToast({ type: 'error', msg: 'Network error' });
+    } finally {
+      setTogglingAgent(null);
+    }
+  };
+
   // Group sessions by type
   const mainSessions = sessions.filter(s => s.key.includes('agent:main') && !s.key.includes('subagent:'));
   const subAgentSessions = sessions.filter(s => s.key.includes('subagent:') || s.key.includes('spawn:') || (s.key.includes('isolated') && !s.key.includes('cron')));
@@ -281,7 +316,9 @@ export default function AgentsPage() {
           <div className="flex items-center gap-3">
             <div className="text-right text-xs text-zinc-500">
               <div>{activeSessions.length} active session{activeSessions.length !== 1 ? 's' : ''}</div>
-              <div>{agents.length} agent type{agents.length !== 1 ? 's' : ''}</div>
+              <div>
+                {agents.filter(a => a.enabled).length} active • {agents.filter(a => !a.enabled).length} inactive • {agents.length} total
+              </div>
             </div>
             <button
               onClick={() => { resetForm(); setShowCreate(true); }}
@@ -299,15 +336,22 @@ export default function AgentsPage() {
         {/* Agent Cards Grid */}
         {enrichedAgents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            {enrichedAgents.map((agent) => (
-              <div
-                key={agent.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition-colors group"
-              >
-                {/* Color bar */}
-                <div className="h-1" style={{ backgroundColor: agent.color }} />
+            {enrichedAgents.map((agent) => {
+              const isPorter = agent.name === 'Porter' || agent.name.toLowerCase().includes('porter');
+              const isDisabled = !agent.enabled;
+              
+              return (
+                <div
+                  key={agent.id}
+                  className={`bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition-colors group ${
+                    isDisabled ? 'opacity-50' : ''
+                  }`}
+                  style={isDisabled ? { filter: 'grayscale(1)' } : {}}
+                >
+                  {/* Color bar */}
+                  <div className="h-1" style={{ backgroundColor: agent.color }} />
 
-                <div className="p-4">
+                  <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div
@@ -324,38 +368,73 @@ export default function AgentsPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="text-white font-semibold">{agent.name}</h3>
-                          {agent.isRunning && (
+                          {/* Status badge */}
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                            agent.enabled 
+                              ? 'bg-green-500/20 text-green-400' 
+                              : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {agent.enabled ? 'Active' : 'Inactive'}
+                          </span>
+                          {/* Running session indicator */}
+                          {agent.isRunning && agent.enabled && (
                             <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                               agent.activeSession 
-                                ? 'bg-green-500/20 text-green-400' 
+                                ? 'bg-blue-500/20 text-blue-400' 
                                 : 'bg-yellow-500/20 text-yellow-400'
                             }`}>
-                              {agent.activeSession ? 'Active' : 'Idle'}
+                              {agent.activeSession ? 'Running' : 'Idle'}
                             </span>
                           )}
                         </div>
                         <span className="text-xs text-zinc-500">{formatModel(agent.model)}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => openEdit(agent)}
-                        className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
-                        title="Edit"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => deleteAgent(agent.id)}
-                        className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors"
-                        title="Delete"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                    <div className="flex items-center gap-2">
+                      {/* Toggle switch or lock icon */}
+                      {isPorter ? (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-zinc-800 rounded" title="Porter is always active - routes tasks to specialist agents">
+                          <svg className="w-3 h-3 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          <span className="text-xs text-zinc-400">Always Active</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => toggleAgent(agent.id, agent.enabled)}
+                          disabled={togglingAgent === agent.id}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ease-in-out ${
+                            agent.enabled ? 'bg-green-600' : 'bg-zinc-600'
+                          } ${togglingAgent === agent.id ? 'opacity-50' : ''}`}
+                          title={`${agent.enabled ? 'Disable' : 'Enable'} ${agent.name}`}
+                        >
+                          <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                            agent.enabled ? 'translate-x-5' : 'translate-x-1'
+                          }`} />
+                        </button>
+                      )}
+                      
+                      {/* Edit/Delete buttons */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openEdit(agent)}
+                          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+                          title="Edit"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => deleteAgent(agent.id)}
+                          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors"
+                          title="Delete"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -431,13 +510,19 @@ export default function AgentsPage() {
                       ) : (
                         <button
                           onClick={() => setSpawnTarget(agent.id)}
-                          disabled={spawning === agent.id}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                          disabled={spawning === agent.id || !agent.enabled}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                            !agent.enabled ? 'cursor-not-allowed' : ''
+                          }`}
                           style={{
-                            backgroundColor: agent.color + '20',
-                            color: agent.color,
+                            backgroundColor: agent.enabled ? agent.color + '20' : '#3f3f46',
+                            color: agent.enabled ? agent.color : '#71717a',
                           }}
-                          title="Spawn a new instance of this agent in an isolated session"
+                          title={
+                            !agent.enabled 
+                              ? 'Enable agent to spawn instances'
+                              : 'Spawn a new instance of this agent in an isolated session'
+                          }
                         >
                           {spawning === agent.id ? (
                             <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24">
@@ -456,7 +541,8 @@ export default function AgentsPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-12 text-center mb-8">

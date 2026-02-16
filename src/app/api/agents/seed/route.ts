@@ -176,6 +176,7 @@ export async function POST() {
       memory_dir: null,
       max_tokens: null,
       handoff_rules: '[]',
+      enabled: true,
       created_by: user.id,
     });
     created++;

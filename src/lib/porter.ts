@@ -13,8 +13,8 @@ interface PorterMatch {
  */
 export function assignAgentByPorter(taskTitle: string, taskDescription?: string): string {
   const agents = getAllAgentDefinitions().filter(agent => {
-    // Only consider enabled agents (we'll add enabled field later, for now assume all enabled)
-    return true;
+    // Only consider enabled agents
+    return agent.enabled;
   });
 
   if (agents.length === 0) {
@@ -69,7 +69,7 @@ export function getPorterAnalysis(taskTitle: string, taskDescription?: string): 
   reasoning: string;
 } {
   const agents = getAllAgentDefinitions().filter(agent => {
-    return true; // All enabled for now
+    return agent.enabled; // Only enabled agents
   });
 
   const text = `${taskTitle} ${taskDescription || ''}`.toLowerCase();
