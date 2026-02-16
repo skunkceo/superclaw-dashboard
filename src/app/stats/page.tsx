@@ -66,8 +66,8 @@ export default function TokensPage() {
     if (!raw) return 'unknown';
     const modelMap: Record<string, string> = {
       'claude-opus-4-20250514': 'Opus 4',
-      'claude-sonnet-4-20250514': 'Sonnet 3.7',
-      'claude-sonnet-4-5-20250514': 'Sonnet 3.7',
+      'claude-sonnet-4-20250514': 'Claude 3.7 Sonnet',
+      'claude-sonnet-4-5-20250514': 'Claude 3.7 Sonnet',
       'claude-haiku-3-5-20241022': 'Haiku 3.5',
     };
     const bare = raw.replace('anthropic/', '');

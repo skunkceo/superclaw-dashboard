@@ -111,6 +111,9 @@ export default function ModelsPage() {
   const [saved, setSaved] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ installed: boolean; installedPath?: string } | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [changingDefault, setChangingDefault] = useState(false);
+  const [showDefaultModal, setShowDefaultModal] = useState(false);
+  const [selectedNewDefault, setSelectedNewDefault] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -220,6 +223,34 @@ export default function ModelsPage() {
       case 'Fast': return 'bg-green-500/20 text-green-400 border-green-500/30';
       default: return 'bg-zinc-700 text-zinc-400 border-zinc-600';
     }
+  };
+
+  const changeDefaultModel = async (modelId: string) => {
+    setChangingDefault(true);
+    try {
+      const res = await fetch('/api/default-model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId }),
+      });
+      if (res.ok) {
+        setDefaultModel(modelId);
+        setShowDefaultModal(false);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        console.error('Failed to change default model');
+      }
+    } catch (err) {
+      console.error('Failed to change default model:', err);
+    } finally {
+      setChangingDefault(false);
+    }
+  };
+
+  const openDefaultModal = () => {
+    setSelectedNewDefault(defaultModel);
+    setShowDefaultModal(true);
   };
 
   return (
@@ -347,6 +378,13 @@ export default function ModelsPage() {
             Reset to Defaults
           </button>
           <button
+            onClick={openDefaultModal}
+            disabled={models.length === 0}
+            className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-blue-400 hover:text-blue-300 disabled:text-zinc-500 text-sm font-medium"
+          >
+            Change Default Model
+          </button>
+          <button
             onClick={savePrefs}
             disabled={saving}
             className="px-4 py-2.5 sm:py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-800 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
@@ -472,6 +510,64 @@ export default function ModelsPage() {
             </div>
           </div>
         </div>
+
+        {/* Change Default Model Modal */}
+        {showDefaultModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-md w-full">
+              <h2 className="text-lg font-semibold text-white mb-4">Change Default Model</h2>
+              <p className="text-zinc-400 text-sm mb-6">Select a new default model for the OpenClaw gateway:</p>
+              
+              <div className="space-y-3 mb-6">
+                {models.map((model) => (
+                  <label key={model.modelId} className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 hover:border-zinc-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="defaultModel"
+                      value={model.modelId}
+                      checked={selectedNewDefault === model.modelId}
+                      onChange={(e) => setSelectedNewDefault(e.target.value)}
+                      className="w-4 h-4 text-red-600 bg-zinc-800 border-zinc-600 focus:ring-red-500"
+                    />
+                    <div className="flex-1">
+                      <div className="text-white font-medium">{model.displayName}</div>
+                      <div className="text-zinc-500 text-xs">{model.provider}</div>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium border ${getTierColor(model.tier)}`}>
+                      {model.tier}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDefaultModal(false)}
+                  className="flex-1 px-4 py-2 text-zinc-400 hover:text-white text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => changeDefaultModel(selectedNewDefault)}
+                  disabled={!selectedNewDefault || selectedNewDefault === defaultModel || changingDefault}
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                >
+                  {changingDefault ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Changing...
+                    </>
+                  ) : (
+                    'Change Default'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

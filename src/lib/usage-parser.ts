@@ -157,7 +157,7 @@ export function parseSessionUsage(sessionsDir: string): AggregatedUsage {
       const output = usage.output || 0;
       const cacheRead = usage.cacheRead || 0;
       const cacheWrite = usage.cacheWrite || 0;
-      const total = usage.totalTokens || (input + output + cacheRead + cacheWrite);
+      const total = usage.totalTokens || (input + output);
       const cost = usage.cost?.total || 0;
 
       // Add to allTime
