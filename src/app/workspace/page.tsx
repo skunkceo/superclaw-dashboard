@@ -29,15 +29,26 @@ export default function WorkspacePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [agentName, setAgentName] = useState<string>('');
+
+  // Get agent ID from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const agent = params.get('agent');
+    setAgentId(agent);
+  }, []);
 
   // Load workspace file list
   useEffect(() => {
     const fetchWorkspaceData = async () => {
       try {
-        const res = await fetch('/api/workspace');
+        const url = agentId ? `/api/workspace?agent=${agentId}` : '/api/workspace';
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch workspace data');
         const data = await res.json();
         setWorkspaceData(data);
+        if (data.agentName) setAgentName(data.agentName);
         
         // Auto-select first existing file
         const firstExistingFile = data.files.find((f: WorkspaceFile) => f.exists);
@@ -52,7 +63,7 @@ export default function WorkspacePage() {
     };
 
     fetchWorkspaceData();
-  }, []);
+  }, [agentId]);
 
   // Load selected file content
   useEffect(() => {
@@ -60,7 +71,10 @@ export default function WorkspacePage() {
 
     const fetchFileContent = async () => {
       try {
-        const res = await fetch(`/api/workspace/${selectedFile}`);
+        const url = agentId 
+          ? `/api/workspace/${selectedFile}?agent=${agentId}`
+          : `/api/workspace/${selectedFile}`;
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch file content');
         const data: FileContent = await res.json();
         setFileContent(data.content);
@@ -72,7 +86,7 @@ export default function WorkspacePage() {
     };
 
     fetchFileContent();
-  }, [selectedFile]);
+  }, [selectedFile, agentId]);
 
   // Check for changes
   useEffect(() => {
@@ -86,7 +100,10 @@ export default function WorkspacePage() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/workspace/${selectedFile}`, {
+      const url = agentId 
+        ? `/api/workspace/${selectedFile}?agent=${agentId}`
+        : `/api/workspace/${selectedFile}`;
+      const res = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -121,36 +138,13 @@ export default function WorkspacePage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      {/* Header */}
-      <header className="border-b border-zinc-800 px-6 py-4 bg-zinc-900/50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <LobsterLogo className="w-12 h-12" />
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-                Workspace Files
-              </h1>
-              <p className="text-sm text-zinc-400">
-                {workspaceData?.workspacePath}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            {hasChanges && (
-              <div className="flex items-center gap-2 text-orange-400">
-                <div className="w-2 h-2 rounded-full bg-orange-400" />
-                <span className="text-sm">Unsaved changes</span>
-              </div>
-            )}
-            <Link
-              href="/"
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-sm"
-            >
-              ← Dashboard
-            </Link>
-          </div>
+      {/* Unsaved changes indicator */}
+      {hasChanges && (
+        <div className="flex items-center gap-2 text-orange-400 px-6 pt-4">
+          <div className="w-2 h-2 rounded-full bg-orange-400" />
+          <span className="text-sm">Unsaved changes</span>
         </div>
-      </header>
+      )}
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 mx-6 mt-4 rounded-lg">
@@ -161,7 +155,16 @@ export default function WorkspacePage() {
       <div className="flex h-[calc(100vh-88px)]">
         {/* Sidebar - File List */}
         <div className="w-64 bg-zinc-900/30 border-r border-zinc-800 p-4">
-          <h2 className="font-semibold text-orange-400 mb-4">Files</h2>
+          <div className="mb-4">
+            {agentName ? (
+              <>
+                <h2 className="font-semibold text-orange-400">{agentName}</h2>
+                <p className="text-xs text-zinc-500 mt-1">Agent Workspace</p>
+              </>
+            ) : (
+              <h2 className="font-semibold text-orange-400">Main Workspace</h2>
+            )}
+          </div>
           <div className="space-y-2">
             {workspaceData?.files.map((file) => (
               <button
@@ -190,24 +193,22 @@ export default function WorkspacePage() {
         <div className="flex-1 flex flex-col">
           {selectedFile ? (
             <>
-              {/* Editor Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/20">
-                <h3 className="font-mono text-orange-400">{selectedFile}</h3>
-                <button
-                  onClick={handleSave}
-                  disabled={!hasChanges || saving}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    hasChanges && !saving
-                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                      : 'bg-zinc-700 text-zinc-400 cursor-not-allowed'
-                  }`}
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-
               {/* Editor */}
-              <div className="flex-1 p-6">
+              <div className="flex-1 p-6 relative">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-mono text-sm text-orange-400">{selectedFile}</h3>
+                  <button
+                    onClick={handleSave}
+                    disabled={!hasChanges || saving}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                      hasChanges && !saving
+                        ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                        : 'bg-zinc-700 text-zinc-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {saving ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
                 <textarea
                   value={fileContent}
                   onChange={(e) => setFileContent(e.target.value)}

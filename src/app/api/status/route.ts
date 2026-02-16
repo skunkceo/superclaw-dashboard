@@ -7,9 +7,10 @@ import { getCurrentUser, needsSetup } from '@/lib/auth';
 // Read Clawdbot/OpenClaw configuration
 function getConfig() {
   const configPaths = [
+    '/root/.openclaw/openclaw.json',
     '/root/.clawdbot/clawdbot.json',
-    join(process.env.HOME || '', '.clawdbot/clawdbot.json'),
     join(process.env.HOME || '', '.openclaw/openclaw.json'),
+    join(process.env.HOME || '', '.clawdbot/clawdbot.json'),
   ];
 
   for (const path of configPaths) {
@@ -106,33 +107,97 @@ async function checkGatewayHealth(port: number, token: string) {
   }
 }
 
-// Fetch active sessions from gateway
-async function fetchActiveSessions(port: number, token: string) {
+// Fetch active sessions from local session files
+async function fetchActiveSessions(sessionsDir: string) {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    // ONLY use synced copy (dashboard runs as mike, can't access root's files)
+    const sessionsJsonPath = '/tmp/openclaw-sessions.json';
     
-    const res = await fetch(`http://127.0.0.1:${port}/sessions?activeMinutes=60&limit=10`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (res.ok) {
-      const data = await res.json();
-      return data.sessions || [];
+    if (!existsSync(sessionsJsonPath)) {
+      console.error('Synced sessions file not found at:', sessionsJsonPath);
+      return [];
     }
-    return [];
-  } catch {
+
+    const sessionsData = JSON.parse(readFileSync(sessionsJsonPath, 'utf8'));
+    const now = Date.now();
+
+    const sessions = [];
+    
+    for (const [sessionKey, sessionInfo] of Object.entries(sessionsData)) {
+      const session = sessionInfo as any;
+      if (session.updatedAt) {
+        // Don't try to read JSONL files (permission issues)
+        // Just use the data from sessions.json
+        const recentMessages: Array<{role: string; content: string; timestamp: string; usage?: any}> = [];
+        const model = session.model || session.lastModel || 'claude-sonnet-4-20250514'; // Use model from sessions.json
+        const totalTokens = session.totalTokens || 0;
+
+        // Slack channel ID → name mapping
+        const slackChannels: Record<string, string> = {
+          'C0ACV8Y8AHW': '#dev',
+          'C0ABZ068W22': '#dailies',
+          'C0AC4JZ0M44': '#marketing',
+          'C0ABKHH98VD': '#product',
+          'C0AC11G4N4A': '#support',
+          'C0AC06RAWG2': '#social',
+          'C0ADVJB9ETA': '#projects',
+          'C0ACBTVCWAY': '#progress',
+          'D0AC0T1M4KU': 'DM',
+          'C0AFE1STJSV': '#superclaw',
+        };
+
+        // Parse session type and display name
+        let kind = 'session';
+        let displayName = session.displayName || session.label || sessionKey;
+        
+        if (sessionKey.includes(':isolated:')) {
+          kind = 'sub-agent';
+          displayName = session.displayName || 'Sub-agent';
+        } else if (sessionKey.includes(':thread:')) {
+          kind = 'thread';
+          // Use displayName from session data if available
+          displayName = session.displayName || 'Slack Thread';
+        } else if (sessionKey.includes(':channel:')) {
+          kind = 'channel';
+          const parts = sessionKey.split(':');
+          const channelIdx = parts.indexOf('channel');
+          const channelId = channelIdx >= 0 ? parts[channelIdx + 1] : '';
+          const channelName = slackChannels[channelId.toUpperCase()] || channelId;
+          displayName = session.displayName || channelName;
+        } else if (sessionKey === 'agent:main:main') {
+          kind = 'main';
+          displayName = 'Main Session';
+        }
+        
+        // Check if session is actually active (updated in last 30 min)
+        const isActive = (now - session.updatedAt) < 30 * 60 * 1000;
+
+        sessions.push({
+          key: sessionKey,
+          sessionId: session.sessionId,
+          kind,
+          displayName,
+          updatedAt: session.updatedAt,
+          model: model.replace('anthropic/', ''),
+          totalTokens,
+          messages: recentMessages,
+          status: isActive ? 'active' : 'idle'
+        });
+      }
+    }
+
+    // Sort by most recent activity
+    return sessions.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10);
+  } catch (error) {
+    console.error('Error fetching active sessions:', error);
     return [];
   }
 }
 
 // Get recent activity from main session
-function getRecentActivity(sessionsDir: string): { lastActive: string; recentMessages: number; status: 'active' | 'idle' } {
+function getRecentActivity(sessionsDir: string): { lastActive: string; recentMessages: number; status: 'active' | 'idle'; currentTask: string | null } {
   if (!existsSync(sessionsDir)) {
-    return { lastActive: 'Unknown', recentMessages: 0, status: 'idle' };
+    return { lastActive: 'Unknown', recentMessages: 0, status: 'idle', currentTask: null };
   }
   
   try {
@@ -147,17 +212,18 @@ function getRecentActivity(sessionsDir: string): { lastActive: string; recentMes
       .sort((a, b) => b.mtime - a.mtime);
     
     if (files.length === 0) {
-      return { lastActive: 'Unknown', recentMessages: 0, status: 'idle' };
+      return { lastActive: 'Unknown', recentMessages: 0, status: 'idle', currentTask: null };
     }
     
     const mainSessionPath = files[0].path;
     const content = readFileSync(mainSessionPath, 'utf8');
     const lines = content.trim().split('\n').filter(Boolean);
     
-    // Count messages in last hour
+    // Count messages in last hour and find last user message for context
     const hourAgo = Date.now() - (60 * 60 * 1000);
     let recentMessages = 0;
     let lastTimestamp = 0;
+    let currentTask: string | null = null;
     
     // Read last 100 lines for efficiency
     const recentLines = lines.slice(-100);
@@ -168,6 +234,15 @@ function getRecentActivity(sessionsDir: string): { lastActive: string; recentMes
           const ts = new Date(msg.timestamp).getTime();
           if (ts > lastTimestamp) lastTimestamp = ts;
           if (ts > hourAgo) recentMessages++;
+        }
+        // Extract context from user messages (look for the last substantive one)
+        if (msg.role === 'user' && msg.content && typeof msg.content === 'string') {
+          const text = msg.content.trim();
+          // Skip heartbeats and very short messages
+          if (!text.includes('HEARTBEAT') && text.length > 10 && text.length < 500) {
+            // Truncate to ~60 chars for display
+            currentTask = text.length > 60 ? text.substring(0, 57) + '...' : text;
+          }
         }
       } catch {
         continue;
@@ -190,9 +265,9 @@ function getRecentActivity(sessionsDir: string): { lastActive: string; recentMes
     // Consider active if message in last 5 minutes
     const status = (Date.now() - lastTimestamp < 5 * 60 * 1000) ? 'active' : 'idle';
     
-    return { lastActive, recentMessages, status };
+    return { lastActive, recentMessages, status, currentTask };
   } catch {
-    return { lastActive: 'Unknown', recentMessages: 0, status: 'idle' };
+    return { lastActive: 'Unknown', recentMessages: 0, status: 'idle', currentTask: null };
   }
 }
 
@@ -219,6 +294,27 @@ function countSessions(sessionsDir: string): { active: number; completed: number
   } catch {
     return { active: 0, completed: 0 };
   }
+}
+
+// Helper function to format last active time
+function formatLastActive(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(mins / 60);
+  
+  if (mins < 1) return 'Just now';
+  else if (mins < 60) return `${mins}m ago`;
+  else if (hours < 24) return `${hours}h ago`;
+  else return `${Math.floor(hours / 24)}d ago`;
+}
+
+// Helper function to truncate content
+function truncateContent(content: string, maxLength: number): string {
+  if (typeof content !== 'string') {
+    content = JSON.stringify(content);
+  }
+  if (content.length <= maxLength) return content;
+  return content.substring(0, maxLength - 3) + '...';
 }
 
 // Get available skills (from built-in + workspace)
@@ -278,24 +374,63 @@ export async function GET() {
     }
   }
 
-  // Get REAL usage data from session files
+  // Get sessions directory
   const sessionsDir = getSessionsDir(configPath);
-  const usage = parseSessionUsage(sessionsDir);
+  
+  // Get REAL usage data from synced file (updated by root cron job)
+  let usage = {
+    today: { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0, byModel: {} },
+    thisWeek: { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0, byModel: {} },
+    thisMonth: { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0, byModel: {} },
+    allTime: { inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0, byModel: {} },
+  };
+  try {
+    const usageData = readFileSync('/tmp/openclaw-usage.json', 'utf8');
+    usage = JSON.parse(usageData);
+  } catch (err) {
+    console.error('Failed to read usage data:', err);
+    // Fall back to parsing session files (will be empty for mike user)
+    usage = parseSessionUsage(sessionsDir);
+  }
   const subscription = getSubscriptionInfo(configPath);
 
   // Get session counts
   const sessionCounts = countSessions(sessionsDir);
 
-  // Fetch active sessions from gateway
-  const activeSessions = await fetchActiveSessions(gatewayPort, gatewayToken);
+  // Fetch active sessions from local files
+  const activeSessions = await fetchActiveSessions(sessionsDir);
+  // Separate main session and sub-agents
+  const mainSession = activeSessions.find((s: any) => s.key.includes('agent:main') || s.displayName.includes('🦞'));
   const subAgents = activeSessions
-    .filter((s: { key?: string }) => s.key !== 'main') // Exclude main session from sub-agents list
-    .map((s: { key?: string; displayName?: string; model?: string; sessionId?: string }) => ({
+    .filter((s: any) => !s.key.includes('agent:main') || s.key.includes('subagent:'))
+    .map((s: any) => ({
       id: s.sessionId || s.key || 'unknown',
       task: s.displayName || s.key || 'Unknown task',
       model: s.model || 'unknown',
-      status: 'active',
+      status: s.status || 'idle',
+      lastActive: s.updatedAt ? formatLastActive(s.updatedAt) : 'Unknown',
+      messages: s.messages || []
     }));
+
+  // Create activity feed from all sessions
+  const activityFeed = [];
+  for (const session of activeSessions) {
+    if (session.messages && session.messages.length > 0) {
+      for (const msg of session.messages) {
+        activityFeed.push({
+          type: 'message',
+          sessionKey: session.key,
+          sessionName: session.displayName,
+          role: msg.role,
+          content: truncateContent(msg.content, 100),
+          timestamp: msg.timestamp,
+          model: session.model
+        });
+      }
+    }
+  }
+  activityFeed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  activityFeed.splice(10); // Keep only last 10 activities
   
   // Get main session activity
   const mainActivity = getRecentActivity(sessionsDir);
@@ -304,12 +439,141 @@ export async function GET() {
   const formatTokens = (n: number) => Math.round(n);
   const formatCost = (n: number) => Math.round(n * 100) / 100;
 
+  // Build better main session context
+  let mainSessionData = null;
+  if (mainSession) {
+    // Extract last user/assistant exchange for context
+    const recentMsgs = mainSession.messages || [];
+    let snippet: string | null = null;
+    let channel = 'DM';
+    
+    // Parse channel from session key
+    if (mainSession.key.includes(':channel:')) {
+      const slackChannels: Record<string, string> = {
+        'C0ACV8Y8AHW': '#dev',
+        'C0ABZ068W22': '#dailies',
+        'C0AC4JZ0M44': '#marketing',
+        'C0ABKHH98VD': '#product',
+        'C0AC11G4N4A': '#support',
+        'C0AC06RAWG2': '#social',
+        'C0ADVJB9ETA': '#projects',
+        'C0ACBTVCWAY': '#progress',
+        'D0AC0T1M4KU': 'DM',
+        'C0AFE1STJSV': '#superclaw',
+      };
+      const parts = mainSession.key.split(':');
+      const channelIdx = parts.indexOf('channel');
+      const channelId = channelIdx >= 0 ? parts[channelIdx + 1] : '';
+      channel = slackChannels[channelId.toUpperCase()] || 'DM';
+    } else if (mainSession.displayName.includes('#')) {
+      channel = mainSession.displayName.split(' ')[0];
+    }
+    
+    // Find last substantive user message for context
+    for (let i = recentMsgs.length - 1; i >= 0; i--) {
+      const msg = recentMsgs[i];
+      if (msg.role === 'user' && msg.content && typeof msg.content === 'string') {
+        const text = msg.content.trim();
+        // Skip heartbeats and very short messages
+        if (!text.includes('HEARTBEAT') && text.length > 10) {
+          snippet = text.length > 60 ? text.substring(0, 57) + '...' : text;
+          break;
+        }
+      }
+    }
+    
+    // Try to get queued messages count from gateway
+    let queuedMessages = 0;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1000);
+      const gwRes = await fetch(`http://127.0.0.1:${gatewayPort}/api/sessions/list`, {
+        headers: { 'Authorization': `Bearer ${gatewayToken}` },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (gwRes.ok) {
+        const gwData = await gwRes.json();
+        const mainSess = gwData.sessions?.find((s: any) => s.key === 'agent:main:main');
+        queuedMessages = mainSess?.queuedMessages || 0;
+      }
+    } catch {
+      // Ignore - gateway might be busy
+    }
+    
+    mainSessionData = {
+      status: mainSession.status,
+      lastActive: formatLastActive(mainSession.updatedAt),
+      recentMessages: recentMsgs.length,
+      currentTask: snippet,
+      channel: channel,
+      model: mainSession.model,
+      totalTokens: mainSession.totalTokens,
+      queuedMessages: queuedMessages
+    };
+  } else if (mainActivity) {
+    mainSessionData = {
+      status: mainActivity.status,
+      lastActive: mainActivity.lastActive,
+      recentMessages: mainActivity.recentMessages,
+      currentTask: mainActivity.currentTask,
+      channel: 'DM',
+      model: 'unknown',
+      totalTokens: 0,
+      queuedMessages: 0
+    };
+  }
+
+  // Count sub-agents that are actually running work (not just idle sessions)
+  const runningSubAgents = activeSessions.filter((s: any) => 
+    s.kind === 'sub-agent' && s.status !== 'done'
+  ).length;
+  
+  // Count ALL open sessions (for context, not as "active work")
+  const openSessions = activeSessions.filter((s: any) => 
+    s.status === 'active' || s.status === 'idle'
+  ).length;
+
   return NextResponse.json({
     health: {
       status: gatewayHealth.healthy ? 'healthy' : 'offline',
       uptime,
       lastHeartbeat: gatewayHealth.healthy ? 'Just now' : 'Unknown',
       gatewayVersion: config?.meta?.lastTouchedVersion || 'Unknown',
+      defaultModel: (() => {
+        // Prefer config value (source of truth)
+        const modelCfg = config?.agents?.defaults?.model;
+        if (modelCfg) {
+          if (typeof modelCfg === 'string') return modelCfg;
+          if (modelCfg.primary) return modelCfg.primary;
+        }
+        // Fallback: scan most recent session for model_change events
+        try {
+          const sessJson = join(sessionsDir, 'sessions.json');
+          if (existsSync(sessJson)) {
+            const sessions = JSON.parse(readFileSync(sessJson, 'utf8'));
+            let latest = { updatedAt: 0, sessionId: '' };
+            for (const [, v] of Object.entries(sessions)) {
+              const s = v as any;
+              if (s.updatedAt > latest.updatedAt) latest = s;
+            }
+            if (latest.sessionId) {
+              const files = readdirSync(sessionsDir).filter(f => f.includes(latest.sessionId) && f.endsWith('.jsonl'));
+              if (files.length > 0) {
+                const content = readFileSync(join(sessionsDir, files[0]), 'utf8');
+                const lines = content.split('\n').filter(Boolean);
+                for (const line of lines) {
+                  try {
+                    const e = JSON.parse(line);
+                    if (e.type === 'model_change' && e.modelId) return e.modelId;
+                  } catch {}
+                }
+              }
+            }
+          }
+        } catch {}
+        return 'Unknown';
+      })(),
     },
     tokens: {
       today: formatTokens(usage.today.totalTokens),
@@ -337,14 +601,23 @@ export async function GET() {
       apiKeys,
     },
     tasks: {
-      active: subAgents.length,
-      completed: sessionCounts.completed,
+      active: openSessions, // Keep for backwards compat
+      runningSubAgents, // NEW: actual work in progress
+      openSessions, // NEW: all open sessions (idle + active)
+      completed: activeSessions.filter((s: any) => s.status === 'done').length,
       subAgents,
-      mainSession: {
-        status: mainActivity.status,
-        lastActive: mainActivity.lastActive,
-        recentMessages: mainActivity.recentMessages,
-      },
+      allSessions: activeSessions.map((s: any) => ({
+        key: s.key,
+        sessionId: s.sessionId,
+        displayName: s.displayName,
+        status: s.status,
+        lastActive: formatLastActive(s.updatedAt),
+        model: s.model,
+        totalTokens: s.totalTokens,
+        messages: s.messages?.slice(-2) || [] // Last 2 messages for preview
+      })),
+      mainSession: mainSessionData,
+      activityFeed,
     },
     skills: getAvailableSkills(),
   });

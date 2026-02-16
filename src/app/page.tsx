@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { HealthCard } from '@/components/HealthCard';
 import { TokenUsage } from '@/components/TokenUsage';
 import { SetupChecklist } from '@/components/SetupChecklist';
-import { ActiveTasks } from '@/components/ActiveTasks';
+import { TasksDashboard } from '@/components/TasksDashboard';
 import { SkillsPanel } from '@/components/SkillsPanel';
 import { LobsterLogo } from '@/components/LobsterLogo';
 
@@ -48,18 +48,67 @@ interface DashboardData {
   };
   tasks: {
     active: number;
+    pending: number;
     completed: number;
-    subAgents: Array<{
+    allTasks: Array<{
+      id: string;
+      title: string;
+      status: 'pending' | 'active' | 'completed';
+      assigned_agent: string | null;
+      what_doing: string | null;
+      created_at: number;
+      completed_at: number | null;
+      session_id: string | null;
+      source: 'chat' | 'backlog' | 'cron';
+      priority?: string;
+      area?: string;
+    }>;
+    mainSession?: {
+      status: 'active' | 'idle' | 'done';
+      lastActive: string;
+      recentMessages?: number;
+      currentTask?: string | null;
+      channel?: string;
+      model?: string;
+      totalTokens?: number;
+      queuedMessages?: number;
+    };
+    // Keep legacy fields for backward compatibility
+    subAgents?: Array<{
       id: string;
       task: string;
       model: string;
       status: string;
+      lastActive?: string;
+      messages?: Array<{
+        role: string;
+        content: string;
+        timestamp: string;
+      }>;
     }>;
-    mainSession?: {
-      status: 'active' | 'idle';
+    allSessions?: Array<{
+      key: string;
+      sessionId?: string;
+      displayName: string;
+      status: 'active' | 'idle' | 'done';
       lastActive: string;
-      recentMessages: number;
-    };
+      model: string;
+      totalTokens: number;
+      messages: Array<{
+        role: string;
+        content: string;
+        timestamp: string;
+      }>;
+    }>;
+    activityFeed?: Array<{
+      type: string;
+      sessionKey: string;
+      sessionName: string;
+      role: string;
+      content: string;
+      timestamp: string;
+      model: string;
+    }>;
   };
   skills: Array<{
     name: string;
@@ -76,10 +125,22 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch('/api/status');
-        if (!res.ok) throw new Error('Failed to fetch status');
-        const json = await res.json();
-        setData(json);
+        const [statusRes, tasksRes] = await Promise.all([
+          fetch('/api/status'),
+          fetch('/api/dashboard-tasks'),
+        ]);
+        
+        if (!statusRes.ok) throw new Error('Failed to fetch status');
+        
+        const statusData = await statusRes.json();
+        
+        // Merge in dashboard tasks if available
+        if (tasksRes.ok) {
+          const tasksData = await tasksRes.json();
+          statusData.tasks = { ...statusData.tasks, ...tasksData.tasks };
+        }
+        
+        setData(statusData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -88,7 +149,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 5000); // Poll every 5 seconds for real-time updates
     return () => clearInterval(interval);
   }, []);
 
@@ -127,7 +188,7 @@ export default function Dashboard() {
         {/* Middle Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <SetupChecklist setup={data.setup} />
-          <ActiveTasks tasks={data.tasks} />
+          <TasksDashboard tasks={data.tasks} />
         </div>
 
         {/* Bottom */}

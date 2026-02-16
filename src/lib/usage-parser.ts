@@ -35,28 +35,28 @@ interface AggregatedUsage {
     outputTokens: number;
     totalTokens: number;
     cost: number;
-    byModel: Record<string, { input: number; output: number; cost: number }>;
+    byModel: Record<string, { input: number; output: number; total: number; cost: number }>;
   };
   thisWeek: {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
     cost: number;
-    byModel: Record<string, { input: number; output: number; cost: number }>;
+    byModel: Record<string, { input: number; output: number; total: number; cost: number }>;
   };
   thisMonth: {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
     cost: number;
-    byModel: Record<string, { input: number; output: number; cost: number }>;
+    byModel: Record<string, { input: number; output: number; total: number; cost: number }>;
   };
   allTime: {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
     cost: number;
-    byModel: Record<string, { input: number; output: number; cost: number }>;
+    byModel: Record<string, { input: number; output: number; total: number; cost: number }>;
   };
 }
 
@@ -76,6 +76,26 @@ function getTimeRanges() {
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   
   return { todayStart, weekStart, monthStart };
+}
+
+// Normalize model names to a canonical form for aggregation
+function normalizeModelName(modelId: string): string {
+  // Strip provider prefix
+  let normalized = modelId.replace(/^(anthropic|openai)\//, '');
+  
+  // Map variants to canonical names (preserve point versions)
+  const modelMap: Record<string, string> = {
+    'claude-opus-4-20250514': 'claude-opus-4.0',
+    'claude-opus-4-5-20250514': 'claude-opus-4.5',
+    'claude-opus-4-6': 'claude-opus-4.6',
+    'claude-sonnet-4-20250514': 'claude-sonnet-4.0',
+    'claude-sonnet-4-5-20250514': 'claude-sonnet-4.5',
+    'claude-sonnet-4-5': 'claude-sonnet-4.5',
+    'claude-haiku-3-5-20241022': 'claude-haiku-3.5',
+    'claude-haiku-4': 'claude-haiku-4.0',
+  };
+  
+  return modelMap[normalized] || normalized;
 }
 
 export function parseSessionUsage(sessionsDir: string): AggregatedUsage {
@@ -104,26 +124,42 @@ export function parseSessionUsage(sessionsDir: string): AggregatedUsage {
     }
 
     const lines = content.split('\n').filter(l => l.trim());
+    let currentModel = 'unknown';
     
     for (const line of lines) {
-      let entry: MessageEntry;
+      let entry: any;
       try {
         entry = JSON.parse(line);
       } catch {
         continue;
       }
 
+      // Track model changes
+      if (entry.type === 'model_change' && entry.modelId) {
+        currentModel = entry.modelId;
+        continue;
+      }
+      if (entry.type === 'custom' && entry.data?.modelId) {
+        currentModel = entry.data.modelId;
+        continue;
+      }
+
       // Extract usage from message
       const usage = entry.message?.usage || entry.usage;
-      const model = entry.message?.model || entry.model || 'unknown';
+      if (!usage) continue;
+
+      // Get model from message field if available, otherwise use tracked model
+      const rawModel = entry.message?.model || currentModel;
+      const model = normalizeModelName(rawModel);
       const rawTimestamp = entry.timestamp || entry.message?.timestamp;
       const timestamp = rawTimestamp ? String(rawTimestamp) : undefined;
 
-      if (!usage) continue;
-
       const input = usage.input || 0;
       const output = usage.output || 0;
-      const total = usage.totalTokens || (input + output);
+      const cacheRead = usage.cacheRead || 0;
+      const cacheWrite = usage.cacheWrite || 0;
+      // ALWAYS calculate total as input + output (exclude cache reads/writes)
+      const total = input + output;
       const cost = usage.cost?.total || 0;
 
       // Add to allTime
@@ -133,10 +169,11 @@ export function parseSessionUsage(sessionsDir: string): AggregatedUsage {
       result.allTime.cost += cost;
 
       if (!result.allTime.byModel[model]) {
-        result.allTime.byModel[model] = { input: 0, output: 0, cost: 0 };
+        result.allTime.byModel[model] = { input: 0, output: 0, total: 0, cost: 0 };
       }
       result.allTime.byModel[model].input += input;
       result.allTime.byModel[model].output += output;
+      result.allTime.byModel[model].total += total;
       result.allTime.byModel[model].cost += cost;
 
       // Check time ranges
@@ -150,10 +187,11 @@ export function parseSessionUsage(sessionsDir: string): AggregatedUsage {
           result.thisMonth.cost += cost;
 
           if (!result.thisMonth.byModel[model]) {
-            result.thisMonth.byModel[model] = { input: 0, output: 0, cost: 0 };
+            result.thisMonth.byModel[model] = { input: 0, output: 0, total: 0, cost: 0 };
           }
           result.thisMonth.byModel[model].input += input;
           result.thisMonth.byModel[model].output += output;
+          result.thisMonth.byModel[model].total += total;
           result.thisMonth.byModel[model].cost += cost;
         }
 
@@ -164,10 +202,11 @@ export function parseSessionUsage(sessionsDir: string): AggregatedUsage {
           result.thisWeek.cost += cost;
 
           if (!result.thisWeek.byModel[model]) {
-            result.thisWeek.byModel[model] = { input: 0, output: 0, cost: 0 };
+            result.thisWeek.byModel[model] = { input: 0, output: 0, total: 0, cost: 0 };
           }
           result.thisWeek.byModel[model].input += input;
           result.thisWeek.byModel[model].output += output;
+          result.thisWeek.byModel[model].total += total;
           result.thisWeek.byModel[model].cost += cost;
         }
 
@@ -178,10 +217,11 @@ export function parseSessionUsage(sessionsDir: string): AggregatedUsage {
           result.today.cost += cost;
 
           if (!result.today.byModel[model]) {
-            result.today.byModel[model] = { input: 0, output: 0, cost: 0 };
+            result.today.byModel[model] = { input: 0, output: 0, total: 0, cost: 0 };
           }
           result.today.byModel[model].input += input;
           result.today.byModel[model].output += output;
+          result.today.byModel[model].total += total;
           result.today.byModel[model].cost += cost;
         }
       }

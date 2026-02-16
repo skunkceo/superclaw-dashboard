@@ -1,28 +1,68 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { getCurrentUser } from '@/lib/auth';
 
-function getGatewayConfig() {
-  const configPaths = [
-    '/root/.clawdbot/clawdbot.json',
-    join(process.env.HOME || '', '.clawdbot/clawdbot.json'),
+const slackChannels: Record<string, string> = {
+  'c0abz068w22': '#dailies',
+  'c0ac4jz0m44': '#marketing',
+  'c0acv8y8ahw': '#dev',
+  'c0abkhh98vd': '#product',
+  'c0ac11g4n4a': '#support',
+  'c0ac06rawg2': '#social',
+  'c0advjb9eta': '#projects',
+  'c0acbtvcway': '#progress',
+  'c0afe1stjsv': '#superclaw',
+};
+
+function formatSchedule(schedule: any): string {
+  if (typeof schedule === 'string') return schedule;
+  if (!schedule) return 'unknown';
+  if (schedule.kind === 'cron') return schedule.expr || 'unknown';
+  if (schedule.kind === 'every') {
+    const mins = Math.round((schedule.everyMs || 0) / 60000);
+    return mins < 60 ? `Every ${mins}m` : `Every ${Math.round(mins / 60)}h`;
+  }
+  if (schedule.kind === 'at') return `Once at ${schedule.at}`;
+  return JSON.stringify(schedule);
+}
+
+function mapJob(job: any) {
+  const schedule = job.schedule || {};
+  const payload = job.payload || {};
+  const delivery = job.delivery || {};
+  const state = job.state || {};
+  const channelName = slackChannels[(delivery.channel || '').toLowerCase()] || delivery.channel || null;
+
+  return {
+    id: job.id || job.jobId,
+    name: job.name || payload.message?.substring(0, 50) || job.id || 'Unnamed',
+    schedule: formatSchedule(schedule),
+    timezone: schedule.tz || null,
+    description: payload.message || '',
+    model: (payload.model || 'unknown').replace('claude-', '').replace('-20241022', '').replace('-20250514', ''),
+    channel: channelName,
+    enabled: job.enabled !== false,
+    nextRun: state.nextRunAtMs ? new Date(state.nextRunAtMs).toISOString() : null,
+    sessionTarget: job.sessionTarget || 'isolated',
+  };
+}
+
+function readJobsFromFile(): any[] {
+  const cronPaths = [
+    '/root/.openclaw/cron/jobs.json',
+    '/root/.clawdbot/cron/jobs.json',
   ];
 
-  for (const path of configPaths) {
-    if (existsSync(path)) {
+  for (const cronPath of cronPaths) {
+    if (existsSync(cronPath)) {
       try {
-        const config = JSON.parse(readFileSync(path, 'utf8'));
-        return {
-          port: config?.gateway?.port || 18789,
-          token: config?.gateway?.auth?.token || '',
-        };
-      } catch {
-        continue;
-      }
+        const data = JSON.parse(readFileSync(cronPath, 'utf8'));
+        return (data.jobs || []).map(mapJob);
+      } catch { continue; }
     }
   }
-  return null;
+  return [];
 }
 
 export async function GET() {
@@ -31,65 +71,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    const gatewayConfig = getGatewayConfig();
-    if (!gatewayConfig) {
-      return NextResponse.json({ jobs: [], error: 'Gateway not configured' });
-    }
-
-    const { port, token } = gatewayConfig;
-
-    // Try to get cron jobs from gateway API
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/cron`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const jobs = (data.jobs || []).map((job: Record<string, unknown>) => ({
-          id: job.id || job.jobId,
-          schedule: job.schedule,
-          text: job.text || job.id,
-          enabled: job.enabled !== false,
-          nextRun: job.nextRun,
-          channel: job.channel,
-        }));
-        return NextResponse.json({ jobs });
-      }
-    } catch {
-      // Gateway API not available, try reading config file directly
-    }
-
-    // Fallback: read from config file
-    const cronPaths = [
-      '/root/.clawdbot/cron/jobs.json',
-      join(process.env.HOME || '', '.clawdbot/cron/jobs.json'),
-    ];
-
-    for (const cronPath of cronPaths) {
-      if (existsSync(cronPath)) {
-        try {
-          const cronData = JSON.parse(readFileSync(cronPath, 'utf8'));
-          const jobs = (cronData.jobs || []).map((job: Record<string, unknown>) => ({
-            id: job.id || job.jobId,
-            schedule: job.schedule,
-            text: job.text || job.id,
-            enabled: job.enabled !== false,
-            channel: job.channel,
-          }));
-          return NextResponse.json({ jobs });
-        } catch {
-          continue;
-        }
-      }
-    }
-
-    return NextResponse.json({ jobs: [] });
-  } catch (error) {
-    console.error('Error fetching cron jobs:', error);
-    return NextResponse.json({ jobs: [], error: 'Failed to fetch cron jobs' });
-  }
+  // Read directly from file — gateway doesn't expose a /cron REST endpoint
+  const jobs = readJobsFromFile();
+  return NextResponse.json({ jobs });
 }
