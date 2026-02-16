@@ -194,6 +194,15 @@ export async function GET(request: NextRequest) {
     let sessionId = '';
     let sessionKey = '';
 
+    // Try to find session key from filename first (e.g., "slack:U123:D456.jsonl" -> "slack:U123:D456")
+    const filenameKey = file.replace('.jsonl', '');
+    
+    // Check if this filename is a valid session key in sessions.json
+    if (sessionsJson[filenameKey]) {
+      sessionKey = filenameKey;
+      sessionId = sessionsJson[filenameKey].sessionId;
+    }
+
     for (const line of lines) {
       let entry: any;
       try { entry = JSON.parse(line); } catch { continue; }
@@ -208,7 +217,7 @@ export async function GET(request: NextRequest) {
         const timestamp = new Date(entry.timestamp || entry.message.timestamp).getTime();
         if (timestamp < cutoffTime) continue;
 
-        // Find session key from sessions.json
+        // Find session key from sessions.json if we don't have it yet
         if (!sessionKey && sessionId) {
           for (const [key, val] of Object.entries(sessionsJson)) {
             if ((val as any).sessionId === sessionId) {
@@ -222,9 +231,21 @@ export async function GET(request: NextRequest) {
         const error = entry.message.details.error || '';
         const { errorType, severity, canSelfHeal, selfHealAction } = classifyError(tool, error);
 
+        // Determine display key: prefer sessionKey, fall back to shortened sessionId or filename
+        let displayKey = sessionKey;
+        if (!displayKey) {
+          if (sessionId) {
+            // Show last 8 chars of sessionId
+            displayKey = sessionId.length > 8 ? '...' + sessionId.slice(-8) : sessionId;
+          } else {
+            // Use filename without extension
+            displayKey = filenameKey;
+          }
+        }
+
         errors.push({
           sessionId: sessionId || file.replace('.jsonl', ''),
-          sessionKey: sessionKey || 'unknown',
+          sessionKey: displayKey,
           timestamp: entry.timestamp || entry.message.timestamp || new Date().toISOString(),
           tool,
           error,

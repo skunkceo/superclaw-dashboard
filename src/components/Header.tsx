@@ -48,12 +48,10 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
 
   const navItems = [
     { href: '/', label: 'Dashboard' },
-    { href: '/command', label: 'Tasks' },
-    { href: '/agents', label: 'Agents' },
-    { href: '/models', label: 'Models' },
-    { href: '/errors', label: 'Errors' },
+    { href: '/tasks', label: 'Tasks' },
+    { href: '/team', label: 'Agent Team' },
+    { href: '/tokens', label: 'Tokens' },
     ...(hasRole('edit') ? [{ href: '/workspace', label: 'Workspace' }] : []),
-    { href: '/versions', label: 'Versions' },
   ];
 
   const isActive = (href: string) => {
@@ -194,10 +192,30 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
                       <div className="text-sm text-white truncate">{user?.email}</div>
                       <div className="text-xs text-zinc-400 mt-0.5">{user?.role}</div>
                     </div>
+                    <Link
+                      href="/errors"
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      Errors
+                    </Link>
+                    <Link
+                      href="/versions"
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                      </svg>
+                      Versions
+                    </Link>
                     {hasRole('admin') && (
                       <Link
                         href="/users"
-                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50"
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50 border-t border-zinc-700"
                         onClick={() => setShowUserMenu(false)}
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
