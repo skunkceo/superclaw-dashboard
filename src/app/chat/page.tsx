@@ -5,19 +5,42 @@ import Link from 'next/link';
 import { LobsterLogo } from '@/components/LobsterLogo';
 
 interface Message {
-  id: string;
-  type: 'user' | 'assistant';
+  id: number;
+  role: 'user' | 'assistant';
   content: string;
-  timestamp: Date;
+  timestamp: number;
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  created_at: number;
+  updated_at: number;
+  message_count: number;
 }
 
 export default function ChatPage() {
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load sessions on mount
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  // Load messages when session changes
+  useEffect(() => {
+    if (currentSessionId) {
+      loadMessages(currentSessionId);
+    }
+  }, [currentSessionId]);
 
   // Auto-scroll to latest message
   const scrollToBottom = () => {
@@ -33,19 +56,50 @@ export default function ChatPage() {
     inputRef.current?.focus();
   }, []);
 
+  const loadSessions = async () => {
+    try {
+      const response = await fetch('/api/chat');
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(data.sessions || []);
+      }
+    } catch (err) {
+      console.error('Failed to load sessions:', err);
+    }
+  };
+
+  const loadMessages = async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/chat?sessionId=${sessionId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data.messages || []);
+      }
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+    }
+  };
+
+  const startNewChat = () => {
+    setCurrentSessionId(null);
+    setMessages([]);
+    setError(null);
+    inputRef.current?.focus();
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
+    const messageText = input.trim();
     const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      type: 'user',
-      content: input.trim(),
-      timestamp: new Date(),
+      id: Date.now(),
+      role: 'user',
+      content: messageText,
+      timestamp: Date.now(),
     };
 
     // Add user message immediately
     setMessages(prev => [...prev, userMessage]);
-    const messageText = input.trim();
     setInput('');
     setIsLoading(true);
     setError(null);
@@ -56,7 +110,10 @@ export default function ChatPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: messageText }),
+        body: JSON.stringify({ 
+          message: messageText,
+          sessionId: currentSessionId,
+        }),
       });
 
       if (!response.ok) {
@@ -66,11 +123,17 @@ export default function ChatPage() {
 
       const data = await response.json();
       
+      // Update session ID if this was a new chat
+      if (!currentSessionId && data.sessionId) {
+        setCurrentSessionId(data.sessionId);
+        loadSessions(); // Refresh session list
+      }
+      
       const assistantMessage: Message = {
-        id: `assistant-${Date.now()}`,
-        type: 'assistant',
+        id: Date.now() + 1,
+        role: 'assistant',
         content: data.message || 'No response received',
-        timestamp: new Date(),
+        timestamp: Date.now(),
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -82,10 +145,10 @@ export default function ChatPage() {
       
       // Add error message to chat
       const errorResponse: Message = {
-        id: `error-${Date.now()}`,
-        type: 'assistant',
+        id: Date.now() + 1,
+        role: 'assistant',
         content: `❌ Error: ${errorMessage}`,
-        timestamp: new Date(),
+        timestamp: Date.now(),
       };
       
       setMessages(prev => [...prev, errorResponse]);
@@ -102,7 +165,8 @@ export default function ChatPage() {
     }
   };
 
-  const formatTime = (date: Date) => {
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -110,119 +174,187 @@ export default function ChatPage() {
     });
   };
 
-  return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-zinc-800 px-6 py-4 bg-zinc-900/50 flex-shrink-0">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <LobsterLogo className="w-8 h-8" />
-              <span className="text-sm text-zinc-400">← Dashboard</span>
-            </Link>
-            <div className="border-l border-zinc-700 h-6 mx-3" />
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-                Chat
-              </h1>
-              <p className="text-sm text-zinc-400">Talk to your OpenClaw</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-400" />
-            <span className="text-sm text-zinc-400">Connected</span>
-          </div>
-        </div>
-      </header>
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          {messages.length === 0 ? (
-            <div className="text-center py-16">
-              <LobsterLogo className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <h2 className="text-xl text-zinc-400 mb-2">Start a conversation</h2>
-              <p className="text-zinc-500">Ask me anything about your OpenClaw setup, or just chat!</p>
+  return (
+    <div className="min-h-screen bg-zinc-950 text-white flex">
+      {/* Sidebar - Chat History */}
+      <div className={`${sidebarOpen ? 'w-80' : 'w-0'} border-r border-zinc-800 bg-zinc-900/50 flex-shrink-0 transition-all duration-300 overflow-hidden`}>
+        <div className="p-4 border-b border-zinc-800">
+          <button
+            onClick={startNewChat}
+            className="w-full px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg font-medium transition-all"
+          >
+            + New Chat
+          </button>
+        </div>
+        
+        <div className="overflow-y-auto h-[calc(100vh-140px)]">
+          {sessions.length === 0 ? (
+            <div className="p-4 text-center text-zinc-500 text-sm">
+              No chat history yet
             </div>
           ) : (
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+            <div className="p-2">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => setCurrentSessionId(session.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg mb-1 transition-colors ${
+                    currentSessionId === session.id
+                      ? 'bg-orange-500/20 border border-orange-500/30'
+                      : 'hover:bg-zinc-800'
+                  }`}
                 >
-                  <div
-                    className={`max-w-[80%] px-4 py-3 rounded-lg ${
-                      message.type === 'user'
-                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white ml-12'
-                        : 'bg-zinc-800 text-zinc-100 mr-12'
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap break-words">{message.content}</div>
-                    <div className={`text-xs mt-2 ${
-                      message.type === 'user' ? 'text-orange-100' : 'text-zinc-400'
-                    }`}>
-                      {formatTime(message.timestamp)}
-                    </div>
+                  <div className="text-sm text-zinc-200 truncate">{session.title}</div>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
+                    <span>{formatDate(session.updated_at)}</span>
+                    <span>•</span>
+                    <span>{session.message_count} msgs</span>
                   </div>
-                </div>
+                </button>
               ))}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-zinc-800 text-zinc-100 px-4 py-3 rounded-lg mr-12">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" />
-                        <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                        <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                      </div>
-                      <span className="text-zinc-400">Thinking...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
-          <div ref={messagesEndRef} />
+        </div>
+        
+        <div className="absolute bottom-4 left-4 right-4 border-t border-zinc-800 pt-4">
+          <Link href="/" className="flex items-center gap-2 text-zinc-400 hover:text-orange-400 transition-colors text-sm">
+            <LobsterLogo className="w-5 h-5" />
+            <span>← Back to Dashboard</span>
+          </Link>
         </div>
       </div>
 
-      {/* Input Area */}
-      <div className="border-t border-zinc-800 px-6 py-4 bg-zinc-900/50 flex-shrink-0">
-        <div className="max-w-4xl mx-auto">
-          {error && (
-            <div className="mb-3 p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-200 text-sm">
-              {error}
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <header className="border-b border-zinc-800 px-6 py-4 bg-zinc-900/50 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setError(null)}
-                className="ml-2 text-red-400 hover:text-red-300"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
               >
-                ✕
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+                  Chat with Clawd
+                </h1>
+                <p className="text-sm text-zinc-400">
+                  {currentSessionId ? 'Continuing conversation' : 'Start a new conversation'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-400" />
+              <span className="text-sm text-zinc-400">Connected</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-6 py-8">
+            {messages.length === 0 ? (
+              <div className="text-center py-16">
+                <LobsterLogo className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <h2 className="text-xl text-zinc-400 mb-2">Start a conversation</h2>
+                <p className="text-zinc-500">Ask me anything about your OpenClaw setup, or just chat!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[80%] px-4 py-3 rounded-lg ${
+                        message.role === 'user'
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white ml-12'
+                          : 'bg-zinc-800 text-zinc-100 mr-12'
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                      <div className={`text-xs mt-2 ${
+                        message.role === 'user' ? 'text-orange-100' : 'text-zinc-400'
+                      }`}>
+                        {formatTime(message.timestamp)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-zinc-800 text-zinc-100 px-4 py-3 rounded-lg mr-12">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" />
+                          <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                          <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                        </div>
+                        <span className="text-zinc-400">Thinking...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Input Area */}
+        <div className="border-t border-zinc-800 px-6 py-4 bg-zinc-900/50 flex-shrink-0">
+          <div className="max-w-4xl mx-auto">
+            {error && (
+              <div className="mb-3 p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-200 text-sm flex items-center justify-between">
+                <span>{error}</span>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Type your message..."
+                className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                disabled={isLoading}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!input.trim() || isLoading}
+                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium text-white transition-all duration-200 min-w-[80px]"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
+                ) : (
+                  'Send'
+                )}
               </button>
             </div>
-          )}
-          <div className="flex gap-3">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type your message..."
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-              disabled={isLoading}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || isLoading}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium text-white transition-all duration-200 min-w-[80px]"
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
-              ) : (
-                'Send'
-              )}
-            </button>
           </div>
         </div>
       </div>
