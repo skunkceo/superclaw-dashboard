@@ -57,108 +57,173 @@ export default function UpgradePage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      {/* Hero */}
-      <div className="max-w-6xl mx-auto px-8 py-16">
-        <div className="text-center mb-16">
-          <LobsterLogo className="w-24 h-24 mx-auto mb-8" />
-          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-            Unlock the Full Power of OpenClaw
-          </h1>
-          <p className="text-xl text-zinc-400 max-w-2xl mx-auto">
-            Get SuperClaw Pro with the OpenClaw Guide — one purchase, lifetime access.
-          </p>
-        </div>
-
-        {/* Pricing Card */}
-        <div className="max-w-md mx-auto mb-24">
-          <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700 rounded-xl p-8 shadow-2xl">
-            <div className="text-center mb-8">
-              <div className="text-6xl font-bold mb-2 bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-                $99
-              </div>
-              <div className="text-zinc-400 text-lg">One-time payment</div>
-              <div className="inline-block mt-3 px-4 py-1.5 bg-orange-500/10 border border-orange-500/30 rounded-full text-sm text-orange-400">
-                Lifetime access • No subscription
-              </div>
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-8">
+      <div className="max-w-6xl w-full">
+        {/* Pricing Cards Grid */}
+        <div className="grid md:grid-cols-3 gap-8">
+          {/* FREE Tier */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 flex flex-col">
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold text-white mb-2">Free</h3>
+              <div className="text-4xl font-bold text-zinc-400 mb-1">$0</div>
+              <div className="text-sm text-zinc-500">Forever free</div>
             </div>
 
-            <div className="space-y-4 mb-8">
-              <h3 className="font-semibold text-lg text-white">What's Included:</h3>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <div className="text-orange-500 mt-1 text-lg">✓</div>
-                  <div>
-                    <div className="font-medium text-white">The OpenClaw Guide</div>
-                    <div className="text-sm text-zinc-400">14-chapter deep dive into mastering OpenClaw</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="text-orange-500 mt-1 text-lg">✓</div>
-                  <div>
-                    <div className="font-medium text-white">SuperClaw Pro Dashboard</div>
-                    <div className="text-sm text-zinc-400">Advanced analytics, automation & multi-user</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="text-orange-500 mt-1 text-lg">✓</div>
-                  <div>
-                    <div className="font-medium text-white">Private Updates</div>
-                    <div className="text-sm text-zinc-400">Exclusive features & early access</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="text-orange-500 mt-1 text-lg">✓</div>
-                  <div>
-                    <div className="font-medium text-white">Priority Support</div>
-                    <div className="text-sm text-zinc-400">Direct access via Discord</div>
-                  </div>
-                </li>
-              </ul>
+            <div className="mb-8 text-sm text-zinc-400">
+              {licenseStatus?.hasLicense ? (
+                <span className="text-zinc-500">Previous tier</span>
+              ) : (
+                <span className="text-green-400 font-medium">Current plan</span>
+              )}
             </div>
+
+            <ul className="space-y-3 mb-8 flex-grow">
+              <li className="flex items-start gap-2 text-sm text-zinc-400">
+                <span className="text-zinc-600 mt-0.5">✓</span>
+                <span>Basic dashboard</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-400">
+                <span className="text-zinc-600 mt-0.5">✓</span>
+                <span>Health monitoring</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-400">
+                <span className="text-zinc-600 mt-0.5">✓</span>
+                <span>Chat interface</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-400">
+                <span className="text-zinc-600 mt-0.5">✓</span>
+                <span>Skills browser</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-400">
+                <span className="text-zinc-600 mt-0.5">✓</span>
+                <span>Basic token tracking</span>
+              </li>
+            </ul>
+
+            <div className="text-center text-sm text-zinc-500">
+              {licenseStatus?.hasLicense ? 'Included' : 'Active'}
+            </div>
+          </div>
+
+          {/* PRO Tier - Best Value */}
+          <div className="bg-gradient-to-br from-orange-900/30 to-amber-900/20 border-2 border-orange-500/50 rounded-xl p-8 flex flex-col relative shadow-2xl shadow-orange-500/20">
+            {/* Best Value Badge */}
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full text-xs font-bold text-white shadow-lg">
+              BEST VALUE
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent mb-2">
+                Pro
+              </h3>
+              <div className="text-5xl font-bold text-white mb-1">$99</div>
+              <div className="text-sm text-zinc-400">One-time • Lifetime access</div>
+            </div>
+
+            <div className="mb-8 text-sm">
+              <span className="inline-block px-3 py-1 bg-orange-500/10 border border-orange-500/30 rounded-full text-orange-400">
+                Includes OpenClaw Guide
+              </span>
+            </div>
+
+            <ul className="space-y-3 mb-8 flex-grow">
+              <li className="flex items-start gap-2 text-sm text-white">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span className="font-medium">Everything in Free, plus:</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Advanced analytics & insights</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Automation & workflows</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Multi-user support</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Priority support</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>14-chapter OpenClaw Guide</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-orange-500 mt-0.5">✓</span>
+                <span>Early access to new features</span>
+              </li>
+            </ul>
 
             <a
               href="https://skunkglobal.com/guides/openclaw-wordpress"
               target="_blank"
               rel="noopener noreferrer"
-              className="block w-full text-center px-6 py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 font-semibold text-lg text-white"
+              className="block w-full text-center px-6 py-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 font-semibold text-white"
             >
-              Get the Guide + Pro Access
+              Get Pro Access
             </a>
+          </div>
 
-            <div className="mt-6 text-center">
-              <a href="/settings" className="text-sm text-zinc-400 hover:text-orange-400 transition-colors">
-                Already have a license key? Activate it here
-              </a>
+          {/* ENTERPRISE Tier */}
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-8 flex flex-col">
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold text-white mb-2">Enterprise</h3>
+              <div className="text-4xl font-bold text-white mb-1">Custom</div>
+              <div className="text-sm text-zinc-500">Tailored to your needs</div>
             </div>
+
+            <div className="mb-8 text-sm text-zinc-500">
+              For teams & organizations
+            </div>
+
+            <ul className="space-y-3 mb-8 flex-grow">
+              <li className="flex items-start gap-2 text-sm text-white">
+                <span className="text-zinc-500 mt-0.5">✓</span>
+                <span className="font-medium">Everything in Pro, plus:</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-zinc-500 mt-0.5">✓</span>
+                <span>Dedicated support</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-zinc-500 mt-0.5">✓</span>
+                <span>Custom integrations</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-zinc-500 mt-0.5">✓</span>
+                <span>Team training</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-zinc-500 mt-0.5">✓</span>
+                <span>SLA guarantees</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-zinc-500 mt-0.5">✓</span>
+                <span>On-premise deployment</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-zinc-500 mt-0.5">✓</span>
+                <span>Custom feature development</span>
+              </li>
+            </ul>
+
+            <a
+              href="mailto:hello@skunkglobal.com?subject=SuperClaw Enterprise Inquiry"
+              className="block w-full text-center px-6 py-4 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-all font-semibold text-white"
+            >
+              Contact Us
+            </a>
           </div>
         </div>
 
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 hover:border-orange-500/30 transition-colors">
-            <div className="text-4xl mb-4 text-orange-500">📊</div>
-            <h3 className="text-lg font-semibold mb-2 text-white">Advanced Analytics</h3>
-            <p className="text-zinc-400 text-sm">
-              Track token usage, costs, and model efficiency over time. Budget alerts and projections included.
-            </p>
-          </div>
-
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 hover:border-orange-500/30 transition-colors">
-            <div className="text-4xl mb-4 text-orange-500">⚡</div>
-            <h3 className="text-lg font-semibold mb-2 text-white">Automation</h3>
-            <p className="text-zinc-400 text-sm">
-              Schedule tasks, create custom workflows, and batch operations. Let your AI work while you sleep.
-            </p>
-          </div>
-
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 hover:border-orange-500/30 transition-colors">
-            <div className="text-4xl mb-4 text-orange-500">👥</div>
-            <h3 className="text-lg font-semibold mb-2 text-white">Multi-User</h3>
-            <p className="text-zinc-400 text-sm">
-              Team dashboard with shared tasks, progress tracking, and permission management.
-            </p>
-          </div>
+        {/* Footer Link */}
+        <div className="mt-12 text-center">
+          <a href="/settings" className="text-sm text-zinc-400 hover:text-orange-400 transition-colors">
+            Already have a license key? Activate it here
+          </a>
         </div>
       </div>
     </div>
