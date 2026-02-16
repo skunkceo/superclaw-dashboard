@@ -95,6 +95,25 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at);
 `);
 
+// Licenses table for Pro tier
+db.exec(`
+  CREATE TABLE IF NOT EXISTS licenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    license_key TEXT UNIQUE NOT NULL,
+    email TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    tier TEXT NOT NULL DEFAULT 'pro',
+    activated_at INTEGER,
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+    stripe_session_id TEXT,
+    stripe_customer_id TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses(license_key);
+  CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(status);
+`);
+
 export type UserRole = 'view' | 'edit' | 'admin';
 
 export interface User {
@@ -334,6 +353,53 @@ export function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 'creat
 
 export function deleteTask(id: string): void {
   db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+}
+
+// License types and functions
+export interface License {
+  id: number;
+  license_key: string;
+  email: string | null;
+  status: 'active' | 'inactive' | 'expired';
+  tier: 'pro';
+  activated_at: number | null;
+  expires_at: number | null;
+  created_at: number;
+  stripe_session_id: string | null;
+  stripe_customer_id: string | null;
+}
+
+export function getLicenseByKey(key: string): License | undefined {
+  return db.prepare('SELECT * FROM licenses WHERE license_key = ?').get(key) as License | undefined;
+}
+
+export function createLicense(license: Omit<License, 'id' | 'created_at'>): number {
+  const result = db.prepare(`
+    INSERT INTO licenses (license_key, email, status, tier, activated_at, expires_at, stripe_session_id, stripe_customer_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    license.license_key, license.email, license.status, license.tier,
+    license.activated_at, license.expires_at, license.stripe_session_id, license.stripe_customer_id
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function activateLicense(key: string, email?: string): boolean {
+  const license = getLicenseByKey(key);
+  if (!license || license.status !== 'active') return false;
+
+  db.prepare('UPDATE licenses SET activated_at = ?, email = ? WHERE license_key = ?')
+    .run(Date.now(), email || license.email, key);
+  return true;
+}
+
+export function getActiveLicense(): License | undefined {
+  return db.prepare('SELECT * FROM licenses WHERE status = ? AND activated_at IS NOT NULL ORDER BY activated_at DESC LIMIT 1')
+    .get('active') as License | undefined;
+}
+
+export function getAllLicenses(): License[] {
+  return db.prepare('SELECT * FROM licenses ORDER BY created_at DESC').all() as License[];
 }
 
 export default db;
