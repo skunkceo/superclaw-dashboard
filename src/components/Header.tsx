@@ -48,8 +48,8 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
 
   const navItems = [
     { href: '/', label: 'Dashboard' },
-    { href: '/sessions', label: 'Sessions' },
     { href: '/agents', label: 'Agents' },
+    { href: '/router', label: 'Router' },
     ...(hasRole('edit') ? [{ href: '/workspace', label: 'Workspace' }] : []),
   ];
 
@@ -164,10 +164,21 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
               <span className="text-xs text-zinc-400 capitalize">{healthStatus}</span>
             </div>
 
+            {/* Upgrade button (always visible) */}
+            <Link
+              href="/upgrade"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg font-medium text-white text-sm transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Upgrade
+            </Link>
+
             {/* Chat button */}
             <Link
               href="/chat"
-              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-4 py-1.5 rounded-lg font-medium text-white text-sm transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30"
+              className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg font-medium text-white text-sm transition-all"
             >
               Chat
             </Link>
@@ -191,10 +202,8 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
                       <div className="text-sm text-white truncate">{user?.email}</div>
                       <div className="text-xs text-zinc-400 mt-0.5">{user?.role}</div>
                     </div>
-                    <a
-                      href="https://skunkglobal.com/checkout?product=superclaw-pro"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Link
+                      href="/upgrade"
                       className="flex items-center gap-2 px-4 py-2.5 text-sm text-orange-400 hover:bg-zinc-700/50"
                       onClick={() => setShowUserMenu(false)}
                     >
@@ -202,7 +211,7 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                       Upgrade to Pro
-                    </a>
+                    </Link>
                     <Link
                       href="/errors"
                       className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50"

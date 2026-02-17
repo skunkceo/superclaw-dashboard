@@ -7,6 +7,7 @@ import { SetupChecklist } from '@/components/SetupChecklist';
 import { TasksDashboard } from '@/components/TasksDashboard';
 import { SkillsPanel } from '@/components/SkillsPanel';
 import { LobsterLogo } from '@/components/LobsterLogo';
+import { ActiveAgents } from '@/components/ActiveAgents';
 
 interface ModelUsage {
   input: number;
@@ -125,21 +126,10 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statusRes, tasksRes] = await Promise.all([
-          fetch('/api/status'),
-          fetch('/api/dashboard-tasks'),
-        ]);
-        
+        const statusRes = await fetch('/api/status');
         if (!statusRes.ok) throw new Error('Failed to fetch status');
         
         const statusData = await statusRes.json();
-        
-        // Merge in dashboard tasks if available
-        if (tasksRes.ok) {
-          const tasksData = await tasksRes.json();
-          statusData.tasks = { ...statusData.tasks, ...tasksData.tasks };
-        }
-        
         setData(statusData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -183,6 +173,11 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <HealthCard health={data.health} />
           <TokenUsage tokens={data.tokens} subscription={data.subscription} />
+        </div>
+
+        {/* Agent Sessions */}
+        <div className="mb-6 sm:mb-8">
+          <ActiveAgents />
         </div>
 
         {/* Middle Row */}

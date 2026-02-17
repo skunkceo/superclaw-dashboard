@@ -93,8 +93,8 @@ export function TasksDashboard({ tasks }: TasksDashboardProps) {
     }
   };
 
-  const activeTasks = tasks.allTasks.filter(t => t.status === 'active' || t.status === 'pending');
-  const completedTasks = tasks.allTasks.filter(t => t.status === 'completed');
+  const activeTasks = (tasks.allTasks || []).filter(t => t.status === 'active' || t.status === 'pending');
+  const completedTasks = (tasks.allTasks || []).filter(t => t.status === 'completed');
   const displayedTasks = view === 'active' ? activeTasks : completedTasks;
 
   return (

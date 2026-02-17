@@ -133,24 +133,6 @@ export default function MemoryPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      {/* Header */}
-      <div className="border-b border-zinc-800 bg-zinc-900/50 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Memory System</h1>
-            <p className="text-sm text-zinc-400 mt-1">
-              Browse MEMORY.md and daily memory files
-            </p>
-          </div>
-          <Link 
-            href="/"
-            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition text-sm"
-          >
-            ← Back to Dashboard
-          </Link>
-        </div>
-      </div>
-
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 mx-6 mt-4 rounded-lg">
           {error}
@@ -170,7 +152,7 @@ export default function MemoryPage() {
           </p>
         </div>
       ) : (
-        <div className="flex h-[calc(100vh-88px)]">
+        <div className="flex h-screen">
           {/* Sidebar - File List */}
           <div className="w-80 bg-zinc-900/30 border-r border-zinc-800 p-4 overflow-y-auto">
             <div className="mb-4">
