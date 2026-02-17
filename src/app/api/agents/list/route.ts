@@ -26,9 +26,20 @@ interface AgentSession {
 
 export async function GET() {
   try {
-    // Get OpenClaw workspace directory
-    // Dashboard runs as 'mike' but OpenClaw runs as 'root', so we need to check root's workspace
-    const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || '/root/.openclaw/workspace';
+    // Get OpenClaw workspace directory from environment
+    const homeDir = os.homedir();
+    const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
+    
+    if (!fs.existsSync(openclawWorkspace)) {
+      return NextResponse.json(
+        { 
+          error: 'OpenClaw workspace not found',
+          hint: 'Run `superclaw setup agents` to configure workspace path'
+        },
+        { status: 404 }
+      );
+    }
+    
     const agentsDir = path.join(openclawWorkspace, 'agents');
 
     // Get configured agent workspaces

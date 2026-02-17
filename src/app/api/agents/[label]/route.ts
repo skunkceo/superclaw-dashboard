@@ -10,7 +10,8 @@ export async function GET(
 ) {
   try {
     const { label } = await params;
-    const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || '/root/.openclaw/workspace';
+    const homeDir = require('os').homedir();
+    const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
     const agentPath = path.join(openclawWorkspace, 'agents', label);
 
     if (!fs.existsSync(agentPath)) {
