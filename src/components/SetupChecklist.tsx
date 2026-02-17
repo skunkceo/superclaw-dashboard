@@ -15,7 +15,7 @@ export function SetupChecklist({ setup }: SetupProps) {
       label: 'Memory System',
       done: setup.memory,
       detail: setup.memory ? 'Configured' : 'Not configured',
-      link: null,
+      link: '/memory',
     },
     {
       label: 'Channels Connected',
