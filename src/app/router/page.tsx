@@ -603,9 +603,9 @@ export default function RouterPage() {
                       <option value="marketing-lead">Marketing Lead</option>
                       <option value="support-lead">Support Lead</option>
                       <option value="product-manager">Product Manager</option>
-                      <option value="martech-engineer">MarTech Engineer (Pro)</option>
-                      <option value="crm-engineer">CRM Engineer (Pro)</option>
-                      <option value="seo-specialist">SEO Specialist (Pro)</option>
+                      <option value="martech-engineer">MarTech Engineer</option>
+                      <option value="crm-engineer">CRM Engineer</option>
+                      <option value="seo-specialist">SEO Specialist</option>
                     </select>
                   </div>
                   <div>
