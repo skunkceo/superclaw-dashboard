@@ -133,7 +133,8 @@ export async function GET() {
         // Try to find "Primary Focus" line (better description)
         const focusMatch = agentsContent.match(/\*\*Primary Focus:\*\*\s*(.+)/);
         if (focusMatch) {
-          description = focusMatch[1].trim().substring(0, 150);
+          // Remove emoji from description
+          description = focusMatch[1].trim().replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim().substring(0, 150);
         } else {
           // Fall back to first paragraph after headers, but skip Identity section
           const lines = agentsContent.split('\n');
@@ -159,8 +160,8 @@ export async function GET() {
             // Skip markdown bullets/lists
             if (trimmed.startsWith('-') || trimmed.startsWith('*')) continue;
             
-            // Found a good description line
-            description = trimmed.substring(0, 150);
+            // Found a good description line - remove emoji
+            description = trimmed.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim().substring(0, 150);
             break;
           }
         }
