@@ -140,16 +140,46 @@ export default function MemoryPage() {
       )}
 
       {memoryData && memoryData.files.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-16 h-16 rounded-lg bg-zinc-800 flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+        <div className="max-w-2xl mx-auto px-6 py-16">
+          <div className="flex flex-col items-center text-center mb-12">
+            <div className="w-16 h-16 rounded-lg bg-zinc-800 flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium mb-2">No Memory Files Found</h3>
+            <p className="text-zinc-400 text-sm max-w-md">
+              Create MEMORY.md or add daily memory files to the memory/ directory in your workspace.
+            </p>
           </div>
-          <h3 className="text-lg font-medium mb-2">No Memory Files Found</h3>
-          <p className="text-zinc-400 text-sm max-w-md">
-            Create MEMORY.md or add daily memory files to the memory/ directory in your workspace.
-          </p>
+
+          {/* Cross-sell */}
+          <div className="border border-zinc-700 rounded-xl p-6 bg-zinc-900/40">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-white mb-1">Do You Need Memory Embeddings?</h4>
+                <p className="text-sm text-zinc-400 leading-relaxed mb-4">
+                  Memory files let your agent remember context across sessions — decisions made, lessons learned, project state. Without them, your agent starts fresh every time. The OpenClaw + WordPress guide covers how to set up persistent memory, daily logs, and long-term context so your agent actually gets smarter over time.
+                </p>
+                <a
+                  href="https://skunkglobal.com/guides/openclaw-wordpress"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Read the OpenClaw guide
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="flex h-screen">

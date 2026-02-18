@@ -10,16 +10,22 @@ async function getWorkspacePath(agentId?: string | null) {
 
   // Try reading from openclaw.json config
   if (!process.env.OPENCLAW_WORKSPACE) {
-    try {
-      const configPath = path.join(homeDir, '.openclaw', 'openclaw.json');
-      const raw = await readFile(configPath, 'utf-8');
-      const config = JSON.parse(raw);
-      const configured = config?.agents?.main?.workspace || config?.agents?.defaults?.workspace || config?.workspace;
-      if (configured) {
-        mainWorkspace = configured;
+    const configCandidates = [
+      path.join(homeDir, '.openclaw', 'openclaw.json'),
+      '/root/.openclaw/openclaw.json',
+    ];
+    for (const configPath of configCandidates) {
+      try {
+        const raw = await readFile(configPath, 'utf-8');
+        const config = JSON.parse(raw);
+        const configured = config?.agents?.main?.workspace || config?.agents?.defaults?.workspace || config?.workspace;
+        if (configured) {
+          mainWorkspace = configured;
+          break;
+        }
+      } catch {
+        // Try next candidate
       }
-    } catch {
-      // Fall back to default
     }
   }
 
