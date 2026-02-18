@@ -8,6 +8,7 @@ import { TasksDashboard } from '@/components/TasksDashboard';
 import { SkillsPanel } from '@/components/SkillsPanel';
 import { LobsterLogo } from '@/components/LobsterLogo';
 import { ActiveAgents } from '@/components/ActiveAgents';
+import { ProactivityWidget } from '@/components/ProactivityWidget';
 
 interface ModelUsage {
   input: number;
@@ -187,8 +188,15 @@ export default function Dashboard() {
           <TasksDashboard tasks={data.tasks} />
         </div>
 
-        {/* Bottom */}
-        <SkillsPanel skills={data.skills} />
+        {/* Proactivity + Skills Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="md:col-span-1">
+            <ProactivityWidget />
+          </div>
+          <div className="md:col-span-2">
+            <SkillsPanel skills={data.skills} />
+          </div>
+        </div>
       </div>
     </main>
   );

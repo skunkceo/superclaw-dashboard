@@ -1,12 +1,90 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function SettingsPage() {
   const [licenseKey, setLicenseKey] = useState('');
   const [validating, setValidating] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Password change
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordMsg, setPasswordMsg] = useState<{ success: boolean; message: string } | null>(null);
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // Proactivity settings
+  const [proSettings, setProSettings] = useState({
+    overnight_start_time: '00:00',
+    overnight_end_time: '06:00',
+    intel_refresh_interval_hours: '6',
+    suggestion_auto_generate: 'true',
+  });
+  const [savingPro, setSavingPro] = useState(false);
+  const [proMsg, setProMsg] = useState('');
+
+  useEffect(() => {
+    fetch('/api/proactivity/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.settings) {
+          setProSettings(prev => ({
+            ...prev,
+            overnight_start_time: d.settings.overnight_start_time || prev.overnight_start_time,
+            overnight_end_time: d.settings.overnight_end_time || prev.overnight_end_time,
+            intel_refresh_interval_hours: d.settings.intel_refresh_interval_hours || prev.intel_refresh_interval_hours,
+            suggestion_auto_generate: d.settings.suggestion_auto_generate || prev.suggestion_auto_generate,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleProSettingsSave = async () => {
+    setSavingPro(true);
+    setProMsg('');
+    try {
+      const res = await fetch('/api/proactivity/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: proSettings }),
+      });
+      if (res.ok) setProMsg('Saved');
+      else setProMsg('Failed to save');
+    } finally {
+      setSavingPro(false);
+      setTimeout(() => setProMsg(''), 2000);
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      setPasswordMsg({ success: false, message: 'New password must be at least 8 characters' });
+      return;
+    }
+    setChangingPassword(true);
+    setPasswordMsg(null);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setPasswordMsg({ success: true, message: 'Password changed successfully' });
+        setCurrentPassword('');
+        setNewPassword('');
+      } else {
+        setPasswordMsg({ success: false, message: d.error || 'Failed to change password' });
+      }
+    } catch {
+      setPasswordMsg({ success: false, message: 'Request failed' });
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
   const validateLicense = async () => {
     setValidating(true);
@@ -183,6 +261,120 @@ export default function SettingsPage() {
                 <p className="text-xs text-zinc-500 mt-2">
                   Configured via .env file. Run <code className="px-1.5 py-0.5 bg-zinc-800 rounded">superclaw setup agents</code> to update.
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Proactivity Settings */}
+          <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-lg font-semibold text-white">Proactivity</h2>
+              <Link href="/proactivity" className="text-xs text-orange-400 hover:text-orange-300">Open module</Link>
+            </div>
+            <p className="text-sm text-zinc-500 mb-5">Configure how Clawd gathers intel and runs overnight tasks.</p>
+
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Overnight start</label>
+                  <input
+                    type="time"
+                    value={proSettings.overnight_start_time}
+                    onChange={e => setProSettings(p => ({ ...p, overnight_start_time: e.target.value }))}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">Overnight end</label>
+                  <input
+                    type="time"
+                    value={proSettings.overnight_end_time}
+                    onChange={e => setProSettings(p => ({ ...p, overnight_end_time: e.target.value }))}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">Intel refresh interval (hours)</label>
+                <select
+                  value={proSettings.intel_refresh_interval_hours}
+                  onChange={e => setProSettings(p => ({ ...p, intel_refresh_interval_hours: e.target.value }))}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                >
+                  <option value="2">Every 2 hours</option>
+                  <option value="4">Every 4 hours</option>
+                  <option value="6">Every 6 hours</option>
+                  <option value="12">Every 12 hours</option>
+                  <option value="24">Once a day</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-zinc-300">Auto-generate suggestions</div>
+                  <div className="text-xs text-zinc-600 mt-0.5">Generate suggestions after each intel refresh</div>
+                </div>
+                <button
+                  onClick={() => setProSettings(p => ({ ...p, suggestion_auto_generate: p.suggestion_auto_generate === 'true' ? 'false' : 'true' }))}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${proSettings.suggestion_auto_generate === 'true' ? 'bg-orange-500' : 'bg-zinc-700'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${proSettings.suggestion_auto_generate === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleProSettingsSave}
+                  disabled={savingPro}
+                  className="px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/20 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {savingPro ? 'Saving...' : 'Save Proactivity Settings'}
+                </button>
+                {proMsg && <span className="text-xs text-green-400">{proMsg}</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Change Password */}
+          <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
+            <h2 className="text-lg font-semibold text-white mb-1">Change Password</h2>
+            <p className="text-sm text-zinc-500 mb-5">Update your SuperClaw login password.</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">Current password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                  placeholder="Enter current password"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">New password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                  placeholder="At least 8 characters"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handlePasswordChange}
+                  disabled={changingPassword || !currentPassword || !newPassword}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {changingPassword ? 'Changing...' : 'Change Password'}
+                </button>
+                {passwordMsg && (
+                  <span className={`text-xs ${passwordMsg.success ? 'text-green-400' : 'text-red-400'}`}>
+                    {passwordMsg.message}
+                  </span>
+                )}
               </div>
             </div>
           </div>

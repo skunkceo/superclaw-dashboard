@@ -4,6 +4,115 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/components/AuthWrapper';
 import { useRouter } from 'next/navigation';
 
+// ─── Add Suggestion Modal ─────────────────────────────────────────────────────
+
+function AddSuggestionModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const [form, setForm] = useState({
+    title: '',
+    why: '',
+    effort: 'low' as 'low' | 'medium' | 'high',
+    impact: 'medium' as 'low' | 'medium' | 'high',
+    category: 'research' as string,
+    priority: '3',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim() || !form.why.trim()) { setError('Title and reason are required'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const impactScore = form.impact === 'high' ? 75 : form.impact === 'medium' ? 50 : 30;
+      const res = await fetch('/api/suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, impact_score: impactScore, priority: parseInt(form.priority) }),
+      });
+      if (res.ok) { onAdded(); onClose(); }
+      else { const d = await res.json(); setError(d.error || 'Failed to add'); }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:max-w-lg bg-zinc-900 border border-zinc-700 rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 z-10">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-semibold text-white">Add Suggestion</h2>
+          <button onClick={onClose} className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">Title</label>
+            <input
+              type="text" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+              placeholder="What should Clawd do?"
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">Why</label>
+            <textarea
+              value={form.why} onChange={e => setForm(p => ({ ...p, why: e.target.value }))}
+              placeholder="Why does this matter for the business?"
+              rows={3}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none resize-none"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-1">Effort</label>
+              <select value={form.effort} onChange={e => setForm(p => ({ ...p, effort: e.target.value as 'low' | 'medium' | 'high' }))}
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-1">Impact</label>
+              <select value={form.impact} onChange={e => setForm(p => ({ ...p, impact: e.target.value as 'low' | 'medium' | 'high' }))}
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-1">Category</label>
+              <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:ring-1 focus:ring-orange-500 focus:outline-none">
+                <option value="content">Content</option>
+                <option value="seo">SEO</option>
+                <option value="code">Code</option>
+                <option value="marketing">Marketing</option>
+                <option value="research">Research</option>
+                <option value="product">Product</option>
+              </select>
+            </div>
+          </div>
+
+          {error && <div className="text-sm text-red-400">{error}</div>}
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-sm font-medium transition-colors">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/20 text-sm font-medium transition-colors disabled:opacity-50">
+              {saving ? 'Adding...' : 'Add Suggestion'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface IntelItem {
@@ -333,13 +442,16 @@ export default function ProactivityPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [runHistory, setRunHistory] = useState<Array<{ id: string; started_at: number; completed_at: number | null; status: string; tasks_started: number; tasks_completed: number; summary: string | null }>>([]);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [intelRes, sugRes, nightRes] = await Promise.all([
+      const [intelRes, sugRes, nightRes, historyRes] = await Promise.all([
         fetch('/api/intel?limit=100'),
         fetch('/api/suggestions?limit=200'),
         fetch('/api/overnight'),
+        fetch('/api/overnight/history?limit=5'),
       ]);
 
       if (intelRes.ok) {
@@ -354,6 +466,10 @@ export default function ProactivityPage() {
       }
       if (nightRes.ok) {
         setOvernight(await nightRes.json());
+      }
+      if (historyRes.ok) {
+        const d = await historyRes.json();
+        setRunHistory(d.runs || []);
       }
     } finally {
       setLoading(false);
@@ -513,7 +629,13 @@ export default function ProactivityPage() {
           <div className="lg:col-span-3">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-white">Suggestions</h2>
-              <div className="text-xs text-zinc-600">From Clawd, automatically generated</div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition-colors border border-zinc-700"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add suggestion
+              </button>
             </div>
 
             {/* Tabs */}
@@ -608,7 +730,55 @@ export default function ProactivityPage() {
             </div>
           </div>
         </div>
+
+        {/* Overnight Run History */}
+        {runHistory.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-base font-semibold text-white mb-4">Run History</h2>
+            <div className="border border-zinc-800 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-800 bg-zinc-900/50">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">Started</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">Tasks</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 hidden sm:table-cell">Summary</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runHistory.map((run, i) => (
+                    <tr key={run.id} className={`border-b border-zinc-800 last:border-0 ${i % 2 === 0 ? '' : 'bg-zinc-900/20'}`}>
+                      <td className="px-4 py-3 text-zinc-400">{timeAgo(run.started_at)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          run.status === 'completed' ? 'bg-green-500/15 text-green-400' :
+                          run.status === 'running' ? 'bg-orange-500/15 text-orange-400' :
+                          'bg-zinc-800 text-zinc-500'
+                        }`}>
+                          {run.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">{run.tasks_completed}/{run.tasks_started}</td>
+                      <td className="px-4 py-3 text-zinc-500 text-xs hidden sm:table-cell truncate max-w-xs">
+                        {run.summary || 'No summary'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* Add Suggestion Modal */}
+      {showAddModal && (
+        <AddSuggestionModal
+          onClose={() => setShowAddModal(false)}
+          onAdded={fetchAll}
+        />
+      )}
     </div>
   );
 }
