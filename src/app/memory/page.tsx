@@ -139,29 +139,6 @@ export default function MemoryPage() {
         </div>
       )}
 
-      {/* Cross-sell — always visible */}
-      <div className="mx-6 mt-4 border border-zinc-700/60 rounded-xl p-4 bg-zinc-900/40 flex items-start gap-4">
-        <div className="w-9 h-9 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-white text-sm mb-1">Level up memory retrieval</h4>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Memory files are the foundation, but memory embeddings make recall significantly smarter. The OpenClaw guide explains how to set up persistent memory, daily logs, and long-term context.
-          </p>
-        </div>
-        <a
-          href="https://skunkglobal.com/guides/openclaw-wordpress"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors whitespace-nowrap"
-        >
-          Read the guide
-        </a>
-      </div>
-
       {memoryData && memoryData.files.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-16 h-16 rounded-lg bg-zinc-800 flex items-center justify-center mb-4">
@@ -210,6 +187,25 @@ export default function MemoryPage() {
                   </div>
                 </button>
               ))}
+            </div>
+
+            {/* Contextual callout — memory embeddings */}
+            <div className="mt-6 pt-4 border-t border-zinc-800">
+              <p className="text-xs font-medium text-zinc-400 mb-2">Want smarter recall?</p>
+              <p className="text-xs text-zinc-500 leading-relaxed mb-3">
+                Memory files store context across sessions. Memory embeddings make retrieval significantly more accurate — your agent finds the right information instead of scanning everything.
+              </p>
+              <a
+                href="https://skunkglobal.com/superclaw/read/1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 transition-colors font-medium"
+              >
+                Chapter 1: Memory embeddings
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
             </div>
           </div>
 
