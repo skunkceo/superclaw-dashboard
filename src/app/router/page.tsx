@@ -21,8 +21,15 @@ interface RoutingRule {
   priority: number;
 }
 
+interface Agent {
+  id: string;
+  name: string;
+  isDefault?: boolean;
+}
+
 export default function RouterPage() {
   const [rules, setRules] = useState<RoutingRule[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [testMessage, setTestMessage] = useState('');
   const [testChannel, setTestChannel] = useState('#dev');
@@ -34,21 +41,33 @@ export default function RouterPage() {
   const [formData, setFormData] = useState<RoutingRule | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
   const [newChannel, setNewChannel] = useState('');
+  const [showAgentSetup, setShowAgentSetup] = useState(false);
+  const [creatingAgent, setCreatingAgent] = useState(false);
 
   useEffect(() => {
-    const fetchRules = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch('/api/router/rules');
-        if (!res.ok) throw new Error('Failed to fetch rules');
-        const data = await res.json();
-        setRules(data.rules || []);
+        const [rulesRes, agentsRes] = await Promise.all([
+          fetch('/api/router/rules'),
+          fetch('/api/agents')
+        ]);
+
+        if (rulesRes.ok) {
+          const data = await rulesRes.json();
+          setRules(data.rules || []);
+        }
+
+        if (agentsRes.ok) {
+          const data = await agentsRes.json();
+          setAgents(data.agents || []);
+        }
       } catch (error) {
-        console.error('Error fetching rules:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchRules();
+    fetchData();
   }, []);
 
   const saveRules = async () => {
@@ -149,6 +168,31 @@ export default function RouterPage() {
             Configure how messages are automatically routed to specialized agents
           </p>
         </div>
+
+        {/* No Agents Prompt */}
+        {!loading && agents.length <= 1 && (
+          <div className="bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-xl p-8 mb-8">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold mb-2">No Specialized Agents Found</h3>
+                <p className="text-zinc-400 mb-4">
+                  You currently only have the main agent. To use message routing, you need to create specialized agents for different tasks (e.g., Lead Developer, Marketing Lead, Support Lead).
+                </p>
+                <button
+                  onClick={() => setShowAgentSetup(true)}
+                  className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-medium transition-colors"
+                >
+                  Create Specialized Agents
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Routing Rules */}
@@ -646,6 +690,112 @@ export default function RouterPage() {
                   className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/50 rounded-lg transition font-medium"
                 >
                   {saving ? 'Saving...' : (editingRule ? 'Save Changes' : 'Create Rule')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Agent Setup Modal */}
+        {showAgentSetup && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6 overflow-y-auto">
+            <div className="bg-zinc-900 rounded-xl border border-zinc-800 max-w-4xl w-full p-6 my-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold">Install Specialized Agents</h3>
+                <button
+                  onClick={() => setShowAgentSetup(false)}
+                  className="text-zinc-400 hover:text-white"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <p className="text-zinc-400 mb-6">
+                Select which specialized agents you want to create. Each agent gets its own workspace and can be assigned to handle specific types of messages.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
+                {[
+                  { id: 'lead-developer', name: 'Lead Developer', desc: 'Handles code, infrastructure, and technical tasks', workspace: '~/agents/lead-developer' },
+                  { id: 'lead-designer', name: 'Lead Designer', desc: 'Manages UI/UX design and visual assets', workspace: '~/agents/lead-designer' },
+                  { id: 'marketing-lead', name: 'Marketing Lead', desc: 'Handles marketing, content, and campaigns', workspace: '~/agents/marketing-lead' },
+                  { id: 'support-lead', name: 'Support Lead', desc: 'Manages customer support and documentation', workspace: '~/agents/support-lead' },
+                  { id: 'product-manager', name: 'Product Manager', desc: 'Coordinates features, roadmap, and strategy', workspace: '~/agents/product-manager' },
+                  { id: 'martech-engineer', name: 'MarTech Engineer', desc: 'Marketing automation and analytics', workspace: '~/agents/martech-engineer' },
+                  { id: 'crm-engineer', name: 'CRM Engineer', desc: 'CRM integrations and customer data', workspace: '~/agents/crm-engineer' },
+                  { id: 'seo-specialist', name: 'SEO Specialist', desc: 'Search optimization and content strategy', workspace: '~/agents/seo-specialist' },
+                ].map(agent => (
+                  <button
+                    key={agent.id}
+                    onClick={async () => {
+                      setCreatingAgent(true);
+                      try {
+                        const res = await fetch('/api/agents', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            name: agent.id,
+                            workspace: agent.workspace,
+                            model: 'anthropic/claude-sonnet-4-6'
+                          })
+                        });
+
+                        if (!res.ok) {
+                          const error = await res.json();
+                          throw new Error(error.details || error.error);
+                        }
+
+                        // Refresh agents list
+                        const agentsRes = await fetch('/api/agents');
+                        if (agentsRes.ok) {
+                          const data = await agentsRes.json();
+                          setAgents(data.agents || []);
+                        }
+
+                        alert(`${agent.name} created successfully!`);
+                      } catch (error: any) {
+                        alert(`Failed to create agent: ${error.message}`);
+                      } finally {
+                        setCreatingAgent(false);
+                      }
+                    }}
+                    disabled={creatingAgent || agents.some(a => a.id === agent.id)}
+                    className={`text-left p-4 rounded-lg border transition-all ${
+                      agents.some(a => a.id === agent.id)
+                        ? 'bg-zinc-800/30 border-zinc-700 cursor-not-allowed opacity-50'
+                        : creatingAgent
+                        ? 'bg-zinc-800/50 border-zinc-700 cursor-wait'
+                        : 'bg-zinc-800 border-zinc-700 hover:border-orange-500 hover:bg-zinc-800/80'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="font-medium text-white">{agent.name}</h4>
+                      {agents.some(a => a.id === agent.id) && (
+                        <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
+                          Installed
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-zinc-400">{agent.desc}</p>
+                    <p className="text-xs text-zinc-600 mt-2 font-mono">{agent.workspace}</p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-zinc-800 flex items-center justify-between">
+                <p className="text-sm text-zinc-500">
+                  {agents.length > 1 ? `${agents.length - 1} agent${agents.length > 2 ? 's' : ''} installed` : 'No agents installed yet'}
+                </p>
+                <button
+                  onClick={() => {
+                    setShowAgentSetup(false);
+                    window.location.reload();
+                  }}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition"
+                >
+                  Done
                 </button>
               </div>
             </div>

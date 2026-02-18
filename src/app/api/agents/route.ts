@@ -1,50 +1,11 @@
-import { NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import Database from 'better-sqlite3';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-const MAX_CONCURRENT_AGENTS = 3;
+const execAsync = promisify(exec);
 
-function getGatewayConfig() {
-  const configPaths = [
-    '/root/.openclaw/openclaw.json',
-    '/root/.clawdbot/clawdbot.json',
-    join(process.env.HOME || '', '.clawdbot/clawdbot.json'),
-  ];
-
-  for (const path of configPaths) {
-    if (existsSync(path)) {
-      try {
-        const config = JSON.parse(readFileSync(path, 'utf8'));
-        return {
-          port: config?.gateway?.port || 18789,
-          token: config?.gateway?.auth?.token || '',
-        };
-      } catch {
-        continue;
-      }
-    }
-  }
-  return null;
-}
-
-function getMarketingDb() {
-  const dbPath = '/home/mike/apps/websites/growth-marketing/marketing.db';
-  if (existsSync(dbPath)) {
-    return new Database(dbPath, { readonly: true });
-  }
-  return null;
-}
-
-interface MainAgentStatus {
-  status: 'idle' | 'processing' | 'thinking';
-  activity: string;
-  lastActive: number;
-  model?: string;
-  sessionTokens?: number;
-}
-
+// GET - List all agents
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
@@ -52,212 +13,87 @@ export async function GET() {
   }
 
   try {
-    // Get main agent status from gateway
-    let mainAgent: MainAgentStatus = {
-      status: 'idle',
-      activity: 'Waiting for input',
-      lastActive: Date.now(),
-    };
+    const { stdout } = await execAsync('openclaw agents list --json 2>&1');
 
-    const gatewayConfig = getGatewayConfig();
-    if (gatewayConfig) {
-      try {
-        // Get main session info
-        const sessionsResponse = await fetch(
-          `http://127.0.0.1:${gatewayConfig.port}/sessions?limit=10&messageLimit=1`,
-          {
-            headers: {
-              'Authorization': `Bearer ${gatewayConfig.token}`,
-            },
-          }
-        );
-
-        if (sessionsResponse.ok) {
-          const sessionsData = await sessionsResponse.json();
-          // Find all main agent sessions (base + threads)
-          const mainSessions = sessionsData.sessions?.filter(
-            (s: { key?: string }) => s.key?.startsWith('agent:main:main')
-          ) || [];
-
-          if (mainSessions.length > 0) {
-            // Find the most recently active session
-            const mostRecent = mainSessions.reduce((latest: { updatedAt?: number }, s: { updatedAt?: number }) => 
-              (s.updatedAt || 0) > (latest.updatedAt || 0) ? s : latest
-            , mainSessions[0]);
-
-            // Get base session for total tokens
-            const baseSession = mainSessions.find((s: { key?: string }) => s.key === 'agent:main:main');
-
-            const lastActive = mostRecent.updatedAt || Date.now();
-            const secondsSinceActive = (Date.now() - lastActive) / 1000;
-            
-            // Determine status based on recency
-            let status: 'idle' | 'processing' | 'thinking' = 'idle';
-            let activity = 'Waiting for input';
-            
-            if (secondsSinceActive < 10) {
-              status = 'processing';
-              activity = 'Processing request...';
-            } else if (secondsSinceActive < 60) {
-              status = 'thinking';
-              // Try to get last message content for context
-              const lastMsg = (mostRecent as { messages?: Array<{ content?: Array<{ type: string; text?: string }> }> }).messages?.[0];
-              if (lastMsg?.content) {
-                const textContent = lastMsg.content.find((c: { type: string }) => c.type === 'text');
-                if (textContent?.text && textContent.text !== 'HEARTBEAT_OK') {
-                  activity = textContent.text.slice(0, 100) + (textContent.text.length > 100 ? '...' : '');
-                } else if (lastMsg.content.find((c: { type: string }) => c.type === 'toolCall')) {
-                  activity = 'Running tools...';
-                }
-              }
-            } else if (secondsSinceActive < 300) {
-              activity = 'Recently active';
-            }
-
-            // Count active threads
-            const activeThreads = mainSessions.filter((s: { key?: string; updatedAt?: number }) => 
-              s.key !== 'agent:main:main' && 
-              (Date.now() - (s.updatedAt || 0)) < 300000 // Active in last 5 min
-            ).length;
-
-            mainAgent = {
-              status,
-              activity: activeThreads > 0 ? `${activity} (${activeThreads} active thread${activeThreads > 1 ? 's' : ''})` : activity,
-              lastActive,
-              model: (mostRecent as { model?: string }).model || (baseSession as { model?: string })?.model,
-              sessionTokens: (baseSession as { totalTokens?: number })?.totalTokens,
-            };
-          }
-        }
-      } catch (e) {
-        console.error('Error fetching main agent status:', e);
-      }
-    }
-
-    // Get queue data from marketing db
-    let queueBacklog = 0;
-    let queueInProgress = 0;
-    let queueItems: Array<{
-      id: number;
-      title: string;
-      priority: string;
-      product?: string;
-      area?: string;
-      status: string;
-      created_at: number;
-    }> = [];
-
-    const db = getMarketingDb();
-    if (db) {
-      try {
-        const backlogResult = db.prepare(
-          "SELECT COUNT(*) as count FROM cc_tasks WHERE status = 'backlog'"
-        ).get() as { count: number };
-        queueBacklog = backlogResult?.count || 0;
-
-        const inProgressResult = db.prepare(
-          "SELECT COUNT(*) as count FROM cc_tasks WHERE status = 'in_progress'"
-        ).get() as { count: number };
-        queueInProgress = inProgressResult?.count || 0;
-
-        queueItems = db.prepare(`
-          SELECT id, title, priority, product, area, status, created_at
-          FROM cc_tasks
-          WHERE status IN ('backlog', 'in_progress')
-          ORDER BY 
-            status DESC,
-            CASE priority 
-              WHEN 'critical' THEN 0 
-              WHEN 'high' THEN 1 
-              WHEN 'medium' THEN 2 
-              WHEN 'low' THEN 3 
-            END,
-            created_at ASC
-          LIMIT 20
-        `).all() as typeof queueItems;
-
-        db.close();
-      } catch (e) {
-        console.error('Error querying marketing db:', e);
-        db.close();
-      }
-    }
-
-    // Get active sub-agent sessions from sessions.json
-    let activeSessions: Array<{
-      sessionKey: string;
-      label?: string;
-      task?: string;
-      model?: string;
-      status: 'running' | 'completed' | 'error';
-      startedAt?: string;
-      lastMessage?: string;
-    }> = [];
-
-    const sessionsDirs = [
-      '/root/.openclaw/agents/main/sessions',
-      '/root/.clawdbot/agents/main/sessions',
-    ];
-    for (const sessDir of sessionsDirs) {
-      const sessFile = join(sessDir, 'sessions.json');
-      if (existsSync(sessFile)) {
+    // Try to parse JSON from output
+    const lines = stdout.split('\n');
+    for (const line of lines) {
+      if (line.trim().startsWith('{')) {
         try {
-          const sessData = JSON.parse(readFileSync(sessFile, 'utf8'));
-          const now = Date.now();
-          for (const [key, val] of Object.entries(sessData)) {
-            const v = val as any;
-            if (key.includes('subagent:') || key.includes('spawn:')) {
-              const age = now - (v.updatedAt || 0);
-              if (age < 60 * 60 * 1000) { // active in last hour
-                activeSessions.push({
-                  sessionKey: key,
-                  label: key.split(':').pop(),
-                  status: age < 5 * 60 * 1000 ? 'running' : 'completed',
-                  startedAt: v.createdAt ? new Date(v.createdAt).toISOString() : undefined,
-                });
-              }
-            }
-          }
+          const data = JSON.parse(line);
+          return NextResponse.json(data);
         } catch {}
-        break;
       }
     }
 
-    // Generate recommendations
-    const recommendations: string[] = [];
-    
-    if (queueBacklog > 0 && activeSessions.length === 0) {
-      recommendations.push(`${queueBacklog} tasks waiting but no agents running. Consider spawning a sub-agent.`);
+    // Fallback: parse text output
+    const agents = [];
+    const agentMatches = stdout.matchAll(/- (\w+)(?:\s+\(default\))?/g);
+    for (const match of agentMatches) {
+      agents.push({
+        id: match[1],
+        name: match[1],
+        isDefault: stdout.includes(`${match[1]} (default)`)
+      });
     }
-    
-    if (queueBacklog > 5 && activeSessions.length < MAX_CONCURRENT_AGENTS) {
-      recommendations.push(`Queue is backing up (${queueBacklog} tasks). Could spawn ${MAX_CONCURRENT_AGENTS - activeSessions.length} more agents.`);
+
+    return NextResponse.json({ agents });
+  } catch (error: any) {
+    console.error('Failed to list agents:', error);
+    return NextResponse.json({
+      error: 'Failed to list agents',
+      details: error.message
+    }, { status: 500 });
+  }
+}
+
+// POST - Create a new agent
+export async function POST(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { name, workspace, model, bind } = body;
+
+    if (!name || !workspace) {
+      return NextResponse.json({
+        error: 'Name and workspace are required'
+      }, { status: 400 });
     }
-    
-    if (activeSessions.length >= MAX_CONCURRENT_AGENTS) {
-      recommendations.push('Running at max capacity. Wait for current work to complete.');
+
+    // Build command
+    let cmd = `openclaw agents add ${name} --non-interactive --workspace "${workspace}"`;
+
+    if (model) {
+      cmd += ` --model "${model}"`;
     }
-    
-    if (queueBacklog === 0 && activeSessions.length === 0) {
-      recommendations.push('All caught up! Add work via chat or wait for scheduled tasks.');
+
+    if (bind && Array.isArray(bind)) {
+      for (const binding of bind) {
+        cmd += ` --bind "${binding}"`;
+      }
+    }
+
+    const { stdout, stderr } = await execAsync(cmd + ' 2>&1');
+
+    // Check for errors
+    if (stderr && !stdout.includes('successfully')) {
+      throw new Error(stderr);
     }
 
     return NextResponse.json({
-      mainAgent,
-      queue: {
-        backlog: queueBacklog,
-        inProgress: queueInProgress,
-        items: queueItems,
-      },
-      agents: {
-        active: activeSessions.length,
-        maxConcurrent: MAX_CONCURRENT_AGENTS,
-        sessions: activeSessions,
-      },
-      recommendations,
+      success: true,
+      message: `Agent '${name}' created successfully`,
+      output: stdout
     });
-  } catch (error) {
-    console.error('Error fetching operations data:', error);
-    return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Failed to create agent:', error);
+    return NextResponse.json({
+      error: 'Failed to create agent',
+      details: error.message
+    }, { status: 500 });
   }
 }
