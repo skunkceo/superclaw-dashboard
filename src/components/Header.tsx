@@ -113,17 +113,19 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
       )}
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-14">
+        <div className="flex items-center h-14">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
-            <LobsterLogo className="w-8 h-8" />
-            <span className="text-lg font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-              SuperClaw
-            </span>
-          </Link>
+          <div className="flex-1">
+            <Link href="/" className="flex items-center gap-2.5 w-fit">
+              <LobsterLogo className="w-8 h-8" />
+              <span className="text-lg font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+                SuperClaw
+              </span>
+            </Link>
+          </div>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
+          {/* Desktop Nav (centered) */}
+          <nav className="hidden md:flex items-center gap-1 flex-shrink-0">
             {navItems.map((item) => (
               <Link
                 key={item.href}
@@ -140,7 +142,7 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
           </nav>
 
           {/* Right side */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-1 justify-end">
             {/* Update notification */}
             {hasAnyUpdate && (
               <Link
