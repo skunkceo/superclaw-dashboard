@@ -12,7 +12,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-const dataDir = process.env.SUPERCLAW_DATA_DIR || path.join(os.homedir(), '.superclaw');
+const dataDir = process.env.SUPERCLAW_DATA_DIR || '/home/mike/.superclaw';
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
 const db = new Database(path.join(dataDir, 'superclaw.db'));
