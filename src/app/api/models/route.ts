@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 // Read OpenClaw config
 function getConfig() {
@@ -24,6 +28,27 @@ function getConfig() {
   return null;
 }
 
+// Map model tier based on name heuristics
+function getModelTier(name: string): string {
+  const nameLower = name.toLowerCase();
+  if (nameLower.includes('opus')) return 'Premium';
+  if (nameLower.includes('haiku')) return 'Fast';
+  if (nameLower.includes('sonnet')) return 'Balanced';
+  if (nameLower.includes('gpt-4o-mini')) return 'Fast';
+  if (nameLower.includes('gpt-4')) return 'Premium';
+  return 'Balanced';
+}
+
+// Get provider from model key
+function getProvider(key: string): string {
+  if (key.startsWith('anthropic/')) return 'Anthropic';
+  if (key.startsWith('openai/')) return 'OpenAI';
+  if (key.startsWith('google/')) return 'Google';
+  if (key.includes('claude')) return 'Anthropic';
+  if (key.includes('gpt')) return 'OpenAI';
+  return 'Unknown';
+}
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
@@ -35,9 +60,8 @@ export async function GET() {
     return NextResponse.json({ error: 'No OpenClaw config found' }, { status: 404 });
   }
 
-  // Extract model info from config
-  const profiles = config?.auth?.profiles || {};
-  const models: Array<{
+  // Get models from OpenClaw CLI
+  let models: Array<{
     provider: string;
     modelId: string;
     displayName: string;
@@ -45,34 +69,39 @@ export async function GET() {
     available: boolean;
   }> = [];
 
-  // Anthropic models (if configured)
-  const anthropicProfile = profiles.anthropic || profiles.default;
-  if (anthropicProfile) {
-    models.push(
-      { provider: 'Anthropic', modelId: 'claude-opus-4-20250514', displayName: 'Claude Opus 4', tier: 'Premium', available: true },
-      { provider: 'Anthropic', modelId: 'claude-sonnet-4-20250514', displayName: 'Claude Sonnet 4', tier: 'Balanced', available: true },
-      { provider: 'Anthropic', modelId: 'claude-haiku-3-5-20241022', displayName: 'Claude Haiku 3.5', tier: 'Fast', available: true },
-    );
-  }
+  try {
+    const { stdout } = await execAsync('openclaw models list --json 2>&1');
+    const modelData = JSON.parse(stdout);
 
-  // OpenAI models (if configured)
-  const openaiProfile = profiles.openai;
-  if (openaiProfile) {
-    models.push(
-      { provider: 'OpenAI', modelId: 'gpt-4o', displayName: 'GPT-4o', tier: 'Premium', available: true },
-      { provider: 'OpenAI', modelId: 'gpt-4o-mini', displayName: 'GPT-4o Mini', tier: 'Fast', available: true },
-    );
+    if (modelData.models && Array.isArray(modelData.models)) {
+      models = modelData.models
+        .filter((m: any) => m.available)
+        .map((m: any) => ({
+          provider: getProvider(m.key),
+          modelId: m.key,
+          displayName: m.name,
+          tier: getModelTier(m.name),
+          available: true,
+        }));
+    }
+  } catch (error) {
+    console.error('Failed to get models from OpenClaw:', error);
+    // Fallback to empty array - the UI will show no models available
   }
 
   // Get default model from config
-  const defaultModel = config?.agents?.defaults?.model?.primary || config?.agents?.defaults?.model || 'claude-sonnet-4-20250514';
+  const defaultModel = config?.agents?.defaults?.model?.primary || config?.agents?.defaults?.model || '';
+
+  // Get configured providers
+  const profiles = config?.auth?.profiles || {};
+  const configured = {
+    anthropic: Object.keys(profiles).some(k => k.includes('anthropic')),
+    openai: Object.keys(profiles).some(k => k.includes('openai')),
+  };
 
   return NextResponse.json({
     models,
     defaultModel,
-    configured: {
-      anthropic: !!anthropicProfile,
-      openai: !!openaiProfile,
-    },
+    configured,
   });
 }

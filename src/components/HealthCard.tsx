@@ -1,10 +1,27 @@
-const modelLabels: Record<string, string> = {
-  'claude-opus-4-6': 'Claude Opus 4',
-  'claude-opus-4-20250514': 'Claude Opus 4',
-  'claude-opus-4-5-20250514': 'Claude Opus 4.5',
-  'claude-sonnet-4-20250514': 'Claude Sonnet 4',
-  'claude-haiku-3-5-20241022': 'Claude Haiku 3.5',
-};
+// Format model display name from model key
+function formatModelName(modelKey: string | undefined): string {
+  if (!modelKey) return 'Unknown';
+
+  // Remove provider prefix
+  const name = modelKey.replace(/^(anthropic|openai|google)\//, '');
+
+  // Common model name mappings
+  const mappings: Record<string, string> = {
+    'claude-opus-4-6': 'Claude Opus 4.6',
+    'claude-opus-4-20250514': 'Claude Opus 4',
+    'claude-opus-4-5-20250514': 'Claude Opus 4.5',
+    'claude-sonnet-4-6': 'Claude Sonnet 4.6',
+    'claude-sonnet-4-20250514': 'Claude Sonnet 4',
+    'claude-haiku-3-5-20241022': 'Claude Haiku 3.5',
+    'gpt-4o': 'GPT-4o',
+    'gpt-4o-mini': 'GPT-4o Mini',
+  };
+
+  // Return mapped name or prettified version of the key
+  return mappings[name] || name
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
+}
 
 interface HealthProps {
   health: {
@@ -23,9 +40,7 @@ export function HealthCard({ health }: HealthProps) {
     offline: 'bg-red-500/20 text-red-400 border-red-500/30',
   };
 
-  const modelDisplay = health.defaultModel
-    ? modelLabels[health.defaultModel] || health.defaultModel
-    : 'Unknown';
+  const modelDisplay = formatModelName(health.defaultModel);
 
   return (
     <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 sm:p-6">

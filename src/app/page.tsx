@@ -21,6 +21,7 @@ interface DashboardData {
     uptime: string;
     lastHeartbeat: string;
     gatewayVersion: string;
+    defaultModel?: string;
   };
   tokens: {
     today: number;
