@@ -38,9 +38,40 @@ export async function GET(
     const agentsPath = path.join(agentPath, 'AGENTS.md');
     if (fs.existsSync(agentsPath)) {
       const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
-      const lines = agentsContent.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-      if (lines.length > 0) {
-        description = lines[0].trim();
+      
+      // Try to find "Primary Focus" line (better description)
+      const focusMatch = agentsContent.match(/\*\*Primary Focus:\*\*\s*(.+)/);
+      if (focusMatch) {
+        description = focusMatch[1].trim();
+      } else {
+        // Fall back to first paragraph after headers, but skip Identity section
+        const lines = agentsContent.split('\n');
+        let inIdentitySection = false;
+        
+        for (const line of lines) {
+          const trimmed = line.trim();
+          
+          // Skip empty lines and headers
+          if (!trimmed || trimmed.startsWith('#')) {
+            // Check if this is the Identity section header
+            if (trimmed.toLowerCase().includes('## identity')) {
+              inIdentitySection = true;
+            } else if (trimmed.startsWith('##')) {
+              inIdentitySection = false; // Moved to a different section
+            }
+            continue;
+          }
+          
+          // Skip lines in Identity section (bullet points with Name, Label, etc.)
+          if (inIdentitySection) continue;
+          
+          // Skip markdown bullets/lists
+          if (trimmed.startsWith('-') || trimmed.startsWith('*')) continue;
+          
+          // Found a good description line
+          description = trimmed;
+          break;
+        }
       }
     }
 
