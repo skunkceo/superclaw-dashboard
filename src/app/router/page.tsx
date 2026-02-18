@@ -31,6 +31,9 @@ export default function RouterPage() {
   const [saving, setSaving] = useState(false);
   const [editingRule, setEditingRule] = useState<RoutingRule | null>(null);
   const [showAddRule, setShowAddRule] = useState(false);
+  const [formData, setFormData] = useState<RoutingRule | null>(null);
+  const [newKeyword, setNewKeyword] = useState('');
+  const [newChannel, setNewChannel] = useState('');
 
   useEffect(() => {
     const fetchRules = async () => {
@@ -69,11 +72,24 @@ export default function RouterPage() {
     setTestPerformed(true);
     
     // Match rules based on priority order
+    // KEYWORD-FIRST ROUTING: Keywords can override channel
     const matched = rules
       .filter(rule => rule.enabled)
       .sort((a, b) => a.priority - b.priority) // Lower priority number = higher priority
       .find(rule => {
-        // Check channel match (with or without #)
+        // Check keyword match (case-insensitive, partial match) - PRIMARY
+        const hasKeywords = rule.conditions.keywords && rule.conditions.keywords.length > 0;
+        const keywordMatch = !hasKeywords ||
+          rule.conditions.keywords!.some(kw => 
+            testMessage.toLowerCase().includes(kw.toLowerCase())
+          );
+        
+        // If keywords are configured and they match, route regardless of channel
+        if (hasKeywords && keywordMatch) {
+          return true;
+        }
+        
+        // Fallback: check channel match if no keywords or keywords didn't match
         const channelMatch = !rule.conditions.channels || rule.conditions.channels.length === 0 ||
           rule.conditions.channels.some(ch => {
             const normalizedRuleCh = ch.startsWith('#') ? ch : `#${ch}`;
@@ -81,14 +97,7 @@ export default function RouterPage() {
             return normalizedRuleCh.toLowerCase() === normalizedTestCh.toLowerCase();
           });
         
-        // Check keyword match (case-insensitive, partial match)
-        const keywordMatch = !rule.conditions.keywords || rule.conditions.keywords.length === 0 ||
-          rule.conditions.keywords.some(kw => 
-            testMessage.toLowerCase().includes(kw.toLowerCase())
-          );
-        
-        // Both conditions must match (AND logic)
-        return channelMatch && keywordMatch;
+        return channelMatch;
       });
     
     setTestResult(matched || null);
@@ -148,7 +157,24 @@ export default function RouterPage() {
               <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
                 <h2 className="font-semibold">Routing Rules</h2>
                 <button 
-                  onClick={() => setShowAddRule(true)}
+                  onClick={() => {
+                    setShowAddRule(true);
+                    setFormData({
+                      id: `rule-${Date.now()}`,
+                      name: 'New Routing Rule',
+                      enabled: true,
+                      priority: rules.length + 1,
+                      conditions: {
+                        channels: [],
+                        keywords: []
+                      },
+                      action: {
+                        agent: 'lead-developer',
+                        model: 'claude-sonnet-4',
+                        spawnNew: false
+                      }
+                    });
+                  }}
                   className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 rounded-lg text-sm text-white transition"
                 >
                   + Add Rule
@@ -222,7 +248,10 @@ export default function RouterPage() {
 
                       {/* Edit */}
                       <button 
-                        onClick={() => setEditingRule(rule)}
+                        onClick={() => {
+                          setEditingRule(rule);
+                          setFormData({...rule});
+                        }}
                         className="p-2 hover:bg-zinc-800 rounded-lg transition text-zinc-400 hover:text-white"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,14 +330,19 @@ export default function RouterPage() {
                 <h2 className="font-semibold">How Routing Works</h2>
               </div>
               <div className="px-6 py-4 space-y-3 text-sm text-zinc-400">
-                <p className="font-medium text-white">Messages are routed by:</p>
+                <p className="font-medium text-white">Keyword-First Routing:</p>
                 <div className="pl-3 space-y-2 text-xs">
-                  <div><span className="text-orange-400">1. Channel</span> - Which Slack/Discord channel it's from</div>
-                  <div><span className="text-orange-400">2. Keywords</span> - Natural language ("fix", "bug", "design")</div>
-                  <div><span className="text-orange-400">3. Priority</span> - Rules checked in order (1 = first)</div>
+                  <div><span className="text-orange-400">Keywords</span> are primary - if message contains keywords, routes to that agent <span className="font-medium text-white">regardless of channel</span></div>
+                  <div><span className="text-orange-400">Channels</span> are optional - used when no keywords match</div>
+                  <div><span className="text-orange-400">Priority</span> - rules checked in order (1 = first)</div>
+                </div>
+                <div className="pt-2 border-t border-zinc-800 mt-3 pt-3 text-xs">
+                  <p className="text-white mb-1">Example:</p>
+                  <p className="text-zinc-500 italic">Message in #dev: "update the marketing copy"</p>
+                  <p className="text-green-400 mt-1">→ Routes to Marketing Lead (keywords override channel)</p>
                 </div>
                 <p className="pt-2 text-xs border-t border-zinc-800 mt-3 pt-3">
-                  <span className="text-white">Repo Assignment:</span> Configure in agent workspaces via <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-orange-400">agent-repo-config.json</code>. Agents have access to assigned repos for code changes.
+                  <span className="text-white">Repo Assignment:</span> Configure via <code className="px-1.5 py-0.5 bg-zinc-800 rounded text-orange-400">superclaw setup agents</code>
                 </p>
               </div>
             </div>
@@ -357,18 +391,19 @@ export default function RouterPage() {
           </div>
         </div>
 
-        {/* Edit Rule Info Modal */}
-        {(editingRule || showAddRule) && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-            <div className="bg-zinc-900 rounded-xl border border-zinc-800 max-w-2xl w-full p-6">
-              <div className="flex items-center justify-between mb-4">
+        {/* Visual Rule Editor Modal */}
+        {(editingRule || showAddRule) && formData && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6 overflow-y-auto">
+            <div className="bg-zinc-900 rounded-xl border border-zinc-800 max-w-3xl w-full p-6 my-8">
+              <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold">
-                  {editingRule ? `Edit Rule: ${editingRule.name}` : 'Add New Rule'}
+                  {editingRule ? 'Edit Routing Rule' : 'Add New Routing Rule'}
                 </h3>
                 <button 
                   onClick={() => {
                     setEditingRule(null);
                     setShowAddRule(false);
+                    setFormData(null);
                   }}
                   className="text-zinc-400 hover:text-white"
                 >
@@ -378,70 +413,240 @@ export default function RouterPage() {
                 </button>
               </div>
 
-              <div className="bg-zinc-950 rounded-lg p-4 mb-4">
-                <div className="text-sm text-zinc-400 mb-2">Visual rule editor coming soon!</div>
-                <div className="text-xs text-zinc-500 mb-4">For now, edit routing rules by modifying the JSON file directly.</div>
-                
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <div className="text-zinc-400 mb-1">1. Open routing rules file:</div>
-                    <code className="block bg-black/50 p-2 rounded text-orange-400 text-xs">
-                      ~/.openclaw/workspace/routing-rules.json
-                    </code>
-                  </div>
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                {/* Rule Name */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Rule Name</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:border-orange-500 focus:outline-none"
+                    placeholder="e.g., Lead Developer - Code & Infrastructure"
+                  />
+                </div>
 
-                  {editingRule && (
+                {/* Priority & Enabled */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-2">Priority</label>
+                    <input
+                      type="number"
+                      value={formData.priority}
+                      onChange={(e) => setFormData({...formData, priority: parseInt(e.target.value) || 1})}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:border-orange-500 focus:outline-none"
+                      min="1"
+                    />
+                    <div className="text-xs text-zinc-500 mt-1">Lower = higher priority</div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-2">Status</label>
+                    <label className="flex items-center gap-3 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.enabled}
+                        onChange={(e) => setFormData({...formData, enabled: e.target.checked})}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-white">Enabled</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Keywords */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Keywords (primary routing)</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && newKeyword.trim()) {
+                          setFormData({
+                            ...formData,
+                            conditions: {
+                              ...formData.conditions,
+                              keywords: [...(formData.conditions.keywords || []), newKeyword.trim()]
+                            }
+                          });
+                          setNewKeyword('');
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:border-orange-500 focus:outline-none"
+                      placeholder="Type keyword and press Enter"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.conditions.keywords?.map((kw, i) => (
+                      <span key={i} className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-sm flex items-center gap-2">
+                        {kw}
+                        <button
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              conditions: {
+                                ...formData.conditions,
+                                keywords: formData.conditions.keywords?.filter((_, idx) => idx !== i)
+                              }
+                            });
+                          }}
+                          className="hover:text-purple-300"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-1">Keywords override channel - message with these keywords routes here regardless of channel</div>
+                </div>
+
+                {/* Channels */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">Channels (optional)</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={newChannel}
+                      onChange={(e) => setNewChannel(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && newChannel.trim()) {
+                          const ch = newChannel.trim().startsWith('#') ? newChannel.trim() : `#${newChannel.trim()}`;
+                          setFormData({
+                            ...formData,
+                            conditions: {
+                              ...formData.conditions,
+                              channels: [...(formData.conditions.channels || []), ch]
+                            }
+                          });
+                          setNewChannel('');
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:border-orange-500 focus:outline-none"
+                      placeholder="Type channel (e.g., #dev) and press Enter"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.conditions.channels?.map((ch, i) => (
+                      <span key={i} className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm flex items-center gap-2">
+                        {ch}
+                        <button
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              conditions: {
+                                ...formData.conditions,
+                                channels: formData.conditions.channels?.filter((_, idx) => idx !== i)
+                              }
+                            });
+                          }}
+                          className="hover:text-blue-300"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Agent & Model */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-2">Target Agent</label>
+                    <select
+                      value={formData.action.agent}
+                      onChange={(e) => setFormData({...formData, action: {...formData.action, agent: e.target.value}})}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:border-orange-500 focus:outline-none"
+                    >
+                      <option value="lead-developer">Lead Developer</option>
+                      <option value="lead-designer">Lead Designer</option>
+                      <option value="marketing-lead">Marketing Lead</option>
+                      <option value="support-lead">Support Lead</option>
+                      <option value="product-manager">Product Manager</option>
+                      <option value="martech-engineer">MarTech Engineer (Pro)</option>
+                      <option value="crm-engineer">CRM Engineer (Pro)</option>
+                      <option value="seo-specialist">SEO Specialist (Pro)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-2">Model</label>
+                    <select
+                      value={formData.action.model}
+                      onChange={(e) => setFormData({...formData, action: {...formData.action, model: e.target.value}})}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:border-orange-500 focus:outline-none"
+                    >
+                      <option value="claude-haiku-4">Haiku (fast, cheap)</option>
+                      <option value="claude-sonnet-4">Sonnet (balanced)</option>
+                      <option value="claude-opus-4">Opus (most capable)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Spawn New */}
+                <div>
+                  <label className="flex items-center gap-3 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.action.spawnNew || false}
+                      onChange={(e) => setFormData({...formData, action: {...formData.action, spawnNew: e.target.checked}})}
+                      className="w-4 h-4"
+                    />
                     <div>
-                      <div className="text-zinc-400 mb-1">2. Find rule with ID:</div>
-                      <code className="block bg-black/50 p-2 rounded text-orange-400 text-xs">
-                        "{editingRule.id}"
-                      </code>
+                      <div className="text-white">Spawn New Session</div>
+                      <div className="text-xs text-zinc-500">Create fresh agent each time (vs. reuse existing)</div>
                     </div>
-                  )}
-
-                  <div>
-                    <div className="text-zinc-400 mb-1">{editingRule ? '3' : '2'}. Edit the JSON:</div>
-                    <pre className="bg-black/50 p-3 rounded text-xs overflow-x-auto text-zinc-300">
-{`{
-  "id": "dev-1",
-  "name": "Lead Developer - Code & Infrastructure",
-  "enabled": true,
-  "priority": 1,
-  "conditions": {
-    "channels": ["#dev"],
-    "keywords": ["code", "bug", "fix"]
-  },
-  "action": {
-    "agent": "lead-developer",
-    "model": "claude-sonnet-4",
-    "spawnNew": false
-  }
-}`}
-                    </pre>
-                  </div>
-
-                  <div>
-                    <div className="text-zinc-400 mb-1">{editingRule ? '4' : '3'}. Reload this page to see changes</div>
-                  </div>
+                  </label>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              {/* Actions */}
+              <div className="flex items-center gap-3 mt-6 pt-6 border-t border-zinc-800">
                 <button
                   onClick={() => {
                     setEditingRule(null);
                     setShowAddRule(false);
+                    setFormData(null);
                   }}
                   className="flex-1 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition"
                 >
-                  Close
+                  Cancel
                 </button>
-                <Link
-                  href="/workspace?file=routing-rules.json"
-                  className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-center transition"
+                <button
+                  onClick={async () => {
+                    setSaving(true);
+                    let newRules = [...rules];
+                    
+                    if (editingRule) {
+                      // Update existing
+                      newRules = newRules.map(r => r.id === formData.id ? formData : r);
+                    } else {
+                      // Add new
+                      newRules.push(formData);
+                    }
+                    
+                    try {
+                      await fetch('/api/router/rules', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                          version: '1.0', 
+                          rules: newRules, 
+                          fallback: { agent: 'main', notify: true } 
+                        })
+                      });
+                      
+                      setRules(newRules);
+                      setEditingRule(null);
+                      setShowAddRule(false);
+                      setFormData(null);
+                    } catch (error) {
+                      console.error('Failed to save:', error);
+                      alert('Failed to save rule');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                  className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/50 rounded-lg transition font-medium"
                 >
-                  Open in Workspace Browser
-                </Link>
+                  {saving ? 'Saving...' : (editingRule ? 'Save Changes' : 'Create Rule')}
+                </button>
               </div>
             </div>
           </div>
