@@ -63,14 +63,29 @@ export default function RouterPage() {
   };
 
   const handleTest = () => {
-    // Simple keyword matching for demo
-    const matched = rules.find(rule => 
-      rule.enabled &&
-      rule.conditions.channels?.includes(testChannel) &&
-      rule.conditions.keywords?.some(kw => 
-        testMessage.toLowerCase().includes(kw.toLowerCase())
-      )
-    );
+    // Match rules based on priority order
+    const matched = rules
+      .filter(rule => rule.enabled)
+      .sort((a, b) => a.priority - b.priority) // Lower priority number = higher priority
+      .find(rule => {
+        // Check channel match (with or without #)
+        const channelMatch = !rule.conditions.channels || rule.conditions.channels.length === 0 ||
+          rule.conditions.channels.some(ch => {
+            const normalizedRuleCh = ch.startsWith('#') ? ch : `#${ch}`;
+            const normalizedTestCh = testChannel.startsWith('#') ? testChannel : `#${testChannel}`;
+            return normalizedRuleCh.toLowerCase() === normalizedTestCh.toLowerCase();
+          });
+        
+        // Check keyword match (case-insensitive, partial match)
+        const keywordMatch = !rule.conditions.keywords || rule.conditions.keywords.length === 0 ||
+          rule.conditions.keywords.some(kw => 
+            testMessage.toLowerCase().includes(kw.toLowerCase())
+          );
+        
+        // Both conditions must match (AND logic)
+        return channelMatch && keywordMatch;
+      });
+    
     setTestResult(matched || null);
   };
 
@@ -266,6 +281,23 @@ export default function RouterPage() {
                     <div className="text-sm text-zinc-400">No matching rule - would go to main session</div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Help */}
+            <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
+              <div className="px-6 py-4 border-b border-zinc-800">
+                <h2 className="font-semibold">Model Selection</h2>
+              </div>
+              <div className="px-6 py-4 space-y-3 text-sm text-zinc-400">
+                <p>Each routing rule specifies which model to use for that agent:</p>
+                <div className="pl-3 space-y-1 text-xs">
+                  <div>• <span className="text-orange-400">Haiku</span> - Fast, low-cost (data pulls, simple tasks)</div>
+                  <div>• <span className="text-orange-400">Sonnet</span> - Balanced (most tasks, default)</div>
+                  <div>• <span className="text-orange-400">Opus</span> - Most capable (complex reasoning)</div>
+                </div>
+                <p className="pt-2">To change an agent's default model, edit the routing rule above.</p>
+                <p className="text-xs text-zinc-500">Future: Per-agent model preferences in agent settings</p>
               </div>
             </div>
 

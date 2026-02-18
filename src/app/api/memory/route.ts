@@ -3,23 +3,18 @@ import { readFile, readdir, stat } from 'fs/promises';
 import path from 'path';
 import { getCurrentUser, hasRole } from '@/lib/auth';
 
-// Read workspace path from clawdbot config or agent-specific path
+// Read workspace path from environment or agent-specific path
 async function getWorkspacePath(agentId?: string | null) {
+  const homeDir = require('os').homedir();
+  const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
+  
   if (agentId) {
-    return `/root/.superclaw/agents/${agentId}/workspace`;
+    // Agent-specific workspace
+    return path.join(openclawWorkspace, 'agents', agentId);
   }
   
-  try {
-    const configPaths = ['/root/.openclaw/openclaw.json', '/root/.clawdbot/clawdbot.json'];
-    let configContent = '';
-    for (const p of configPaths) {
-      try { configContent = await readFile(p, 'utf-8'); break; } catch { continue; }
-    }
-    const config = JSON.parse(configContent);
-    return config.agents?.defaults?.workspace || '/root/clawd';
-  } catch {
-    return '/root/clawd';
-  }
+  // Main workspace
+  return openclawWorkspace;
 }
 
 export async function GET(request: Request) {
