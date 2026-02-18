@@ -402,4 +402,325 @@ export function getAllLicenses(): License[] {
   return db.prepare('SELECT * FROM licenses ORDER BY created_at DESC').all() as License[];
 }
 
+// ─── Proactivity Module ───────────────────────────────────────────────────────
+
+// Intelligence items table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS intel_items (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    url TEXT,
+    source TEXT NOT NULL DEFAULT 'brave',
+    relevance_score INTEGER DEFAULT 50,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+    read_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_intel_category ON intel_items(category);
+  CREATE INDEX IF NOT EXISTS idx_intel_created ON intel_items(created_at);
+`);
+
+// Suggestions table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS suggestions (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    why TEXT NOT NULL,
+    effort TEXT NOT NULL,
+    impact TEXT NOT NULL,
+    impact_score INTEGER DEFAULT 50,
+    category TEXT NOT NULL,
+    source_intel_ids TEXT DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'pending',
+    priority INTEGER DEFAULT 3,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+    actioned_at INTEGER,
+    notes TEXT,
+    report_id TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_suggestions_status ON suggestions(status);
+  CREATE INDEX IF NOT EXISTS idx_suggestions_priority ON suggestions(priority);
+  CREATE INDEX IF NOT EXISTS idx_suggestions_created ON suggestions(created_at);
+`);
+
+// Overnight runs table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS overnight_runs (
+    id TEXT PRIMARY KEY,
+    started_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    status TEXT NOT NULL DEFAULT 'running',
+    tasks_started INTEGER DEFAULT 0,
+    tasks_completed INTEGER DEFAULT 0,
+    summary TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_overnight_status ON overnight_runs(status);
+`);
+
+// Reports table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reports (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    suggestion_id TEXT,
+    overnight_run_id TEXT,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+  );
+  CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(type);
+  CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at);
+`);
+
+// Proactivity settings table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS proactivity_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+  );
+`);
+
+// Seed default settings if not present
+const defaultSettings: Record<string, string> = {
+  overnight_mode: 'false',
+  overnight_start_time: '00:00',
+  overnight_end_time: '06:00',
+  intel_refresh_interval_hours: '6',
+  suggestion_auto_generate: 'true',
+  last_intel_refresh: '0',
+  last_suggestion_run: '0',
+};
+for (const [key, value] of Object.entries(defaultSettings)) {
+  db.prepare(`INSERT OR IGNORE INTO proactivity_settings (key, value) VALUES (?, ?)`).run(key, value);
+}
+
+// ─── Intel Item types & functions ────────────────────────────────────────────
+
+export interface IntelItem {
+  id: string;
+  category: 'market' | 'competitor' | 'seo' | 'opportunity' | 'wordpress';
+  title: string;
+  summary: string;
+  url: string | null;
+  source: string;
+  relevance_score: number;
+  created_at: number;
+  read_at: number | null;
+}
+
+export function getAllIntelItems(filters?: { category?: string; unread?: boolean; limit?: number }): IntelItem[] {
+  let query = 'SELECT * FROM intel_items';
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (filters?.category) {
+    conditions.push('category = ?');
+    values.push(filters.category);
+  }
+  if (filters?.unread) {
+    conditions.push('read_at IS NULL');
+  }
+
+  if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+  query += ' ORDER BY created_at DESC';
+  if (filters?.limit) {
+    query += ' LIMIT ?';
+    values.push(filters.limit);
+  }
+
+  return db.prepare(query).all(...values) as IntelItem[];
+}
+
+export function createIntelItem(item: Omit<IntelItem, 'created_at' | 'read_at'>): void {
+  db.prepare(`
+    INSERT INTO intel_items (id, category, title, summary, url, source, relevance_score)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(item.id, item.category, item.title, item.summary, item.url, item.source, item.relevance_score);
+}
+
+export function markIntelRead(id: string): void {
+  db.prepare('UPDATE intel_items SET read_at = ? WHERE id = ?').run(Date.now(), id);
+}
+
+export function markAllIntelRead(): void {
+  db.prepare('UPDATE intel_items SET read_at = ? WHERE read_at IS NULL').run(Date.now());
+}
+
+export function getIntelStats(): { total: number; unread: number; byCategory: Record<string, number> } {
+  const total = (db.prepare('SELECT COUNT(*) as n FROM intel_items').get() as { n: number }).n;
+  const unread = (db.prepare('SELECT COUNT(*) as n FROM intel_items WHERE read_at IS NULL').get() as { n: number }).n;
+  const rows = db.prepare('SELECT category, COUNT(*) as n FROM intel_items GROUP BY category').all() as { category: string; n: number }[];
+  const byCategory: Record<string, number> = {};
+  for (const row of rows) byCategory[row.category] = row.n;
+  return { total, unread, byCategory };
+}
+
+// ─── Suggestion types & functions ─────────────────────────────────────────────
+
+export interface Suggestion {
+  id: string;
+  title: string;
+  why: string;
+  effort: 'low' | 'medium' | 'high';
+  impact: 'low' | 'medium' | 'high';
+  impact_score: number;
+  category: 'content' | 'seo' | 'code' | 'marketing' | 'research' | 'product';
+  source_intel_ids: string;
+  status: 'pending' | 'approved' | 'dismissed' | 'queued' | 'in_progress' | 'completed';
+  priority: number;
+  created_at: number;
+  actioned_at: number | null;
+  notes: string | null;
+  report_id: string | null;
+}
+
+export function getAllSuggestions(filters?: { status?: string; limit?: number }): Suggestion[] {
+  let query = 'SELECT * FROM suggestions';
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (filters?.status) {
+    conditions.push('status = ?');
+    values.push(filters.status);
+  }
+
+  if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+  query += ' ORDER BY priority ASC, impact_score DESC, created_at DESC';
+  if (filters?.limit) {
+    query += ' LIMIT ?';
+    values.push(filters.limit);
+  }
+
+  return db.prepare(query).all(...values) as Suggestion[];
+}
+
+export function getSuggestionById(id: string): Suggestion | undefined {
+  return db.prepare('SELECT * FROM suggestions WHERE id = ?').get(id) as Suggestion | undefined;
+}
+
+export function createSuggestion(s: Omit<Suggestion, 'created_at' | 'actioned_at' | 'report_id'>): void {
+  db.prepare(`
+    INSERT INTO suggestions (id, title, why, effort, impact, impact_score, category, source_intel_ids, status, priority, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(s.id, s.title, s.why, s.effort, s.impact, s.impact_score, s.category, s.source_intel_ids, s.status, s.priority, s.notes);
+}
+
+export function updateSuggestion(id: string, updates: Partial<Omit<Suggestion, 'id' | 'created_at'>>): void {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  for (const [key, value] of Object.entries(updates)) {
+    if (key === 'id' || key === 'created_at') continue;
+    fields.push(`${key} = ?`);
+    values.push(value);
+  }
+  if (fields.length === 0) return;
+  values.push(id);
+  db.prepare(`UPDATE suggestions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function deleteSuggestion(id: string): void {
+  db.prepare('DELETE FROM suggestions WHERE id = ?').run(id);
+}
+
+export function getSuggestionStats(): { pending: number; approved: number; queued: number; completed: number; dismissed: number } {
+  const rows = db.prepare('SELECT status, COUNT(*) as n FROM suggestions GROUP BY status').all() as { status: string; n: number }[];
+  const stats: Record<string, number> = { pending: 0, approved: 0, queued: 0, completed: 0, dismissed: 0 };
+  for (const row of rows) if (row.status in stats) stats[row.status] = row.n;
+  return stats as { pending: number; approved: number; queued: number; completed: number; dismissed: number };
+}
+
+// ─── Overnight run types & functions ─────────────────────────────────────────
+
+export interface OvernightRun {
+  id: string;
+  started_at: number;
+  completed_at: number | null;
+  status: 'running' | 'completed' | 'stopped';
+  tasks_started: number;
+  tasks_completed: number;
+  summary: string | null;
+}
+
+export function createOvernightRun(id: string): void {
+  db.prepare(`INSERT INTO overnight_runs (id, started_at) VALUES (?, ?)`).run(id, Date.now());
+}
+
+export function updateOvernightRun(id: string, updates: Partial<OvernightRun>): void {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  for (const [key, value] of Object.entries(updates)) {
+    if (key === 'id' || key === 'started_at') continue;
+    fields.push(`${key} = ?`);
+    values.push(value);
+  }
+  if (fields.length === 0) return;
+  values.push(id);
+  db.prepare(`UPDATE overnight_runs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+export function getLatestOvernightRun(): OvernightRun | undefined {
+  return db.prepare('SELECT * FROM overnight_runs ORDER BY started_at DESC LIMIT 1').get() as OvernightRun | undefined;
+}
+
+export function getActiveOvernightRun(): OvernightRun | undefined {
+  return db.prepare("SELECT * FROM overnight_runs WHERE status = 'running' ORDER BY started_at DESC LIMIT 1").get() as OvernightRun | undefined;
+}
+
+// ─── Report types & functions ────────────────────────────────────────────────
+
+export interface Report {
+  id: string;
+  title: string;
+  type: 'sprint' | 'research' | 'seo' | 'competitor' | 'content' | 'intelligence' | 'general';
+  content: string;
+  suggestion_id: string | null;
+  overnight_run_id: string | null;
+  created_at: number;
+}
+
+export function getAllReports(filters?: { type?: string; limit?: number }): Report[] {
+  let query = 'SELECT id, title, type, suggestion_id, overnight_run_id, created_at FROM reports';
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  if (filters?.type) {
+    conditions.push('type = ?');
+    values.push(filters.type);
+  }
+  if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+  query += ' ORDER BY created_at DESC';
+  if (filters?.limit) { query += ' LIMIT ?'; values.push(filters.limit); }
+  return db.prepare(query).all(...values) as Report[];
+}
+
+export function getReportById(id: string): Report | undefined {
+  return db.prepare('SELECT * FROM reports WHERE id = ?').get(id) as Report | undefined;
+}
+
+export function createReport(r: Omit<Report, 'created_at'>): void {
+  db.prepare(`
+    INSERT INTO reports (id, title, type, content, suggestion_id, overnight_run_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(r.id, r.title, r.type, r.content, r.suggestion_id, r.overnight_run_id);
+}
+
+// ─── Proactivity settings ─────────────────────────────────────────────────────
+
+export function getProactivitySetting(key: string): string | null {
+  const row = db.prepare('SELECT value FROM proactivity_settings WHERE key = ?').get(key) as { value: string } | undefined;
+  return row ? row.value : null;
+}
+
+export function setProactivitySetting(key: string, value: string): void {
+  db.prepare('INSERT OR REPLACE INTO proactivity_settings (key, value, updated_at) VALUES (?, ?, ?)').run(key, value, Date.now());
+}
+
+export function getAllProactivitySettings(): Record<string, string> {
+  const rows = db.prepare('SELECT key, value FROM proactivity_settings').all() as { key: string; value: string }[];
+  const result: Record<string, string> = {};
+  for (const row of rows) result[row.key] = row.value;
+  return result;
+}
+
 export default db;

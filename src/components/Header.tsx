@@ -46,10 +46,29 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
       .catch(() => {});
   }, []);
 
-  const navItems = [
+  const [proactivityStats, setProactivityStats] = useState<{ unread: number; pending: number } | null>(null);
+
+  useEffect(() => {
+    // Check for unread intel / pending suggestions for badge
+    Promise.all([
+      fetch('/api/intel?stats=true').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/suggestions?stats=true').then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([intel, sug]) => {
+      if (intel || sug) {
+        setProactivityStats({
+          unread: intel?.unread || 0,
+          pending: sug?.pending || 0,
+        });
+      }
+    });
+  }, []);
+
+  const navItems: Array<{ href: string; label: string; badge?: number }> = [
     { href: '/', label: 'Dashboard' },
     { href: '/agents', label: 'Agents' },
     { href: '/router', label: 'Router' },
+    { href: '/proactivity', label: 'Proactivity', badge: proactivityStats ? proactivityStats.pending + proactivityStats.unread : 0 },
+    { href: '/reports', label: 'Reports' },
     ...(hasRole('edit') ? [{ href: '/workspace', label: 'Workspace' }] : []),
   ];
 
@@ -130,13 +149,18 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   isActive(item.href)
                     ? 'bg-zinc-800 text-white'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
                 }`}
               >
                 {item.label}
+                {item.badge != null && item.badge > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center">
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
