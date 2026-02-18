@@ -169,8 +169,8 @@ export default function RouterPage() {
           </p>
         </div>
 
-        {/* No Agents Prompt */}
-        {!loading && agents.length <= 1 && (
+        {/* No Rules Prompt — only show when there are no routing rules at all */}
+        {!loading && rules.length === 0 && (
           <div className="bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-xl p-8 mb-8">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0 w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
@@ -179,15 +179,25 @@ export default function RouterPage() {
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-xl font-semibold mb-2">No Specialized Agents Found</h3>
+                <h3 className="text-xl font-semibold mb-2">No Routing Rules Configured</h3>
                 <p className="text-zinc-400 mb-4">
-                  You currently only have the main agent. To use message routing, you need to create specialized agents for different tasks (e.g., Lead Developer, Marketing Lead, Support Lead).
+                  Add routing rules to automatically direct messages to specialized agents (e.g., Lead Developer, Marketing Lead, Support Lead). Agents are spawned on demand — no pre-registration needed.
                 </p>
                 <button
-                  onClick={() => setShowAgentSetup(true)}
+                  onClick={() => {
+                    setShowAddRule(true);
+                    setFormData({
+                      id: `rule-${Date.now()}`,
+                      name: 'New Routing Rule',
+                      enabled: true,
+                      priority: 1,
+                      conditions: { channels: [], keywords: [] },
+                      action: { agent: 'lead-developer', model: 'claude-sonnet-4', spawnNew: false }
+                    });
+                  }}
                   className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-medium transition-colors"
                 >
-                  Create Specialized Agents
+                  Add First Rule
                 </button>
               </div>
             </div>
