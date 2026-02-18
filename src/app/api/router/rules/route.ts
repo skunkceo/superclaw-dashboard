@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { getOpenClawWorkspace } from '@/lib/workspace';
+
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const homeDir = os.homedir();
-    const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
+    const openclawWorkspace = getOpenClawWorkspace();
     const rulesPath = path.join(openclawWorkspace, 'routing-rules.json');
 
     if (!fs.existsSync(rulesPath)) {
@@ -36,8 +36,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const homeDir = os.homedir();
-    const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
+    const openclawWorkspace = getOpenClawWorkspace();
     const rulesPath = path.join(openclawWorkspace, 'routing-rules.json');
 
     const rules = await request.json();

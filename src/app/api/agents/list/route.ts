@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { getOpenClawWorkspace } from '@/lib/workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,20 +26,7 @@ interface AgentSession {
 
 export async function GET() {
   try {
-    // Get OpenClaw workspace directory from environment
-    const homeDir = os.homedir();
-    const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
-    
-    if (!fs.existsSync(openclawWorkspace)) {
-      return NextResponse.json(
-        { 
-          error: 'OpenClaw workspace not found',
-          hint: 'Run `superclaw setup agents` to configure workspace path'
-        },
-        { status: 404 }
-      );
-    }
-    
+    const openclawWorkspace = getOpenClawWorkspace();
     const agentsDir = path.join(openclawWorkspace, 'agents');
 
     // Get configured agent workspaces
@@ -118,11 +105,8 @@ export async function GET() {
       console.error('Failed to get sessions from OpenClaw:', e);
     }
 
-    // Transform workspaces into agents list with isPro flag
+    // Transform workspaces into agents list
     const agents = workspaces.map(w => {
-      // Specialized agents are Pro features
-      const specializedAgents = ['martech-engineer', 'crm-engineer', 'seo-specialist'];
-      const isPro = specializedAgents.includes(w.label);
       
       // Extract description from AGENTS.md if exists
       let description = 'AI agent';
@@ -172,7 +156,6 @@ export async function GET() {
         name: w.name,
         emoji: w.emoji,
         description,
-        isPro,
         hasMemory: w.hasMemory,
         memorySize: w.memorySize
       };

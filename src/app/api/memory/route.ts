@@ -2,34 +2,13 @@ import { NextResponse } from 'next/server';
 import { readFile, readdir, stat } from 'fs/promises';
 import path from 'path';
 import { getCurrentUser, hasRole } from '@/lib/auth';
+import { getMainWorkspace, getOpenClawWorkspace } from '@/lib/workspace';
 
-// Read workspace path from OpenClaw config (same approach as workspace route)
-async function getWorkspacePath(agentId?: string | null) {
+function resolveWorkspacePath(agentId?: string | null): string {
   if (agentId) {
-    return `/root/.superclaw/agents/${agentId}/workspace`;
+    return path.join(getOpenClawWorkspace(), 'agents', agentId);
   }
-
-  if (process.env.OPENCLAW_WORKSPACE) {
-    return process.env.OPENCLAW_WORKSPACE;
-  }
-
-  // Read config from known locations directly (don't rely on homedir)
-  const configCandidates = [
-    '/root/.openclaw/openclaw.json',
-    '/root/.clawdbot/clawdbot.json',
-  ];
-  for (const configPath of configCandidates) {
-    try {
-      const raw = await readFile(configPath, 'utf-8');
-      const config = JSON.parse(raw);
-      const workspace = config?.agents?.defaults?.workspace || config?.agents?.main?.workspace || config?.workspace;
-      if (workspace) return workspace;
-    } catch {
-      // try next
-    }
-  }
-
-  return '/root/clawd';
+  return getMainWorkspace();
 }
 
 export async function GET(request: Request) {
@@ -45,7 +24,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const agentId = searchParams.get('agent');
-    const workspacePath = await getWorkspacePath(agentId);
+    const workspacePath = resolveWorkspacePath(agentId);
     
     const files: Array<{ name: string; path: string; size: number; modified: string; isDirectory: boolean }> = [];
     
@@ -130,7 +109,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
     }
     
-    const workspacePath = await getWorkspacePath(agentId);
+    const workspacePath = resolveWorkspacePath(agentId);
     const filePath = path.join(workspacePath, file);
     
     const content = await readFile(filePath, 'utf-8');
