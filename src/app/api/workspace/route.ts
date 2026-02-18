@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
+import { readFile, readdir, stat } from 'fs/promises';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { getCurrentUser, hasRole } from '@/lib/auth';
@@ -80,10 +80,30 @@ export async function GET(request: Request) {
       })
     );
 
+    // Also include memory/ daily files
+    const memoryFiles: Array<{ name: string; exists: boolean }> = [];
+    try {
+      const memoryDir = path.join(workspacePath, 'memory');
+      const dirStat = await stat(memoryDir);
+      if (dirStat.isDirectory()) {
+        const entries = await readdir(memoryDir);
+        const mdFiles = entries
+          .filter(f => f.endsWith('.md') || f.endsWith('.json'))
+          .sort()
+          .reverse() // newest first
+          .slice(0, 14); // last 2 weeks
+        for (const f of mdFiles) {
+          memoryFiles.push({ name: `memory/${f}`, exists: true });
+        }
+      }
+    } catch {
+      // no memory dir
+    }
+
     return NextResponse.json({
       workspacePath,
       agentName,
-      files
+      files: [...files, ...memoryFiles]
     });
   } catch (error) {
     console.error('Error listing workspace files:', error);

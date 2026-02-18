@@ -3,38 +3,33 @@ import { readFile, readdir, stat } from 'fs/promises';
 import path from 'path';
 import { getCurrentUser, hasRole } from '@/lib/auth';
 
-// Read workspace path from OpenClaw config, env override, or fallback
+// Read workspace path from OpenClaw config (same approach as workspace route)
 async function getWorkspacePath(agentId?: string | null) {
-  const homeDir = require('os').homedir();
-  let mainWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
+  if (agentId) {
+    return `/root/.superclaw/agents/${agentId}/workspace`;
+  }
 
-  // Try reading from openclaw.json config
-  if (!process.env.OPENCLAW_WORKSPACE) {
-    const configCandidates = [
-      path.join(homeDir, '.openclaw', 'openclaw.json'),
-      '/root/.openclaw/openclaw.json',
-    ];
-    for (const configPath of configCandidates) {
-      try {
-        const raw = await readFile(configPath, 'utf-8');
-        const config = JSON.parse(raw);
-        const configured = config?.agents?.main?.workspace || config?.agents?.defaults?.workspace || config?.workspace;
-        if (configured) {
-          mainWorkspace = configured;
-          break;
-        }
-      } catch {
-        // Try next candidate
-      }
+  if (process.env.OPENCLAW_WORKSPACE) {
+    return process.env.OPENCLAW_WORKSPACE;
+  }
+
+  // Read config from known locations directly (don't rely on homedir)
+  const configCandidates = [
+    '/root/.openclaw/openclaw.json',
+    '/root/.clawdbot/clawdbot.json',
+  ];
+  for (const configPath of configCandidates) {
+    try {
+      const raw = await readFile(configPath, 'utf-8');
+      const config = JSON.parse(raw);
+      const workspace = config?.agents?.defaults?.workspace || config?.agents?.main?.workspace || config?.workspace;
+      if (workspace) return workspace;
+    } catch {
+      // try next
     }
   }
 
-  if (agentId) {
-    // Agent-specific workspace: check OpenClaw config for agent workspace first
-    return path.join(homeDir, '.openclaw', 'workspace', 'agents', agentId);
-  }
-
-  return mainWorkspace;
+  return '/root/clawd';
 }
 
 export async function GET(request: Request) {
