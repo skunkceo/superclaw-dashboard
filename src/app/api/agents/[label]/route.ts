@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { getOpenClawWorkspace } from '@/lib/workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,9 +11,7 @@ export async function GET(
 ) {
   try {
     const { label } = await params;
-    const homeDir = require('os').homedir();
-    const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
-    const agentPath = path.join(openclawWorkspace, 'agents', label);
+    const agentPath = path.join(getOpenClawWorkspace(), 'agents', label);
 
     if (!fs.existsSync(agentPath)) {
       return NextResponse.json(
@@ -23,14 +22,11 @@ export async function GET(
 
     // Read agent identity
     let name = label;
-    let emoji = '🤖';
     const identityPath = path.join(agentPath, 'IDENTITY.md');
     if (fs.existsSync(identityPath)) {
       const identity = fs.readFileSync(identityPath, 'utf-8');
       const nameMatch = identity.match(/\*\*Name:\*\*\s*(.+)/);
-      const emojiMatch = identity.match(/\*\*Emoji:\*\*\s*(.+)/);
       if (nameMatch) name = nameMatch[1].trim();
-      if (emojiMatch) emoji = emojiMatch[1].trim();
     }
 
     // Read agent description from AGENTS.md
@@ -103,10 +99,6 @@ export async function GET(
       }
     }
 
-    // Check if this is a specialized (Pro) agent
-    const specializedAgents = ['martech-engineer', 'crm-engineer', 'seo-specialist'];
-    const isPro = specializedAgents.includes(label);
-
     // Format memory size
     const formatSize = (bytes: number) => {
       if (bytes < 1024) return `${bytes}B`;
@@ -117,9 +109,7 @@ export async function GET(
     const agent = {
       label,
       name,
-      emoji,
       description,
-      isPro,
       memory: {
         size: formatSize(memorySize),
         bytes: memorySize,

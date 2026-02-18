@@ -7,9 +7,7 @@ import { useState, useEffect } from 'react';
 interface Agent {
   label: string;
   name: string;
-  emoji: string;
   description: string;
-  isPro: boolean;
   status: string;
   messageCount: number;
   lastActive: string;
@@ -79,13 +77,7 @@ export default function AgentDetailPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </Link>
-            <span className="text-3xl">{agent.emoji}</span>
             <h1 className="text-3xl font-bold">{agent.name}</h1>
-            {agent.isPro && (
-              <span className="px-2 py-1 bg-orange-500/20 text-orange-400 text-xs rounded-full border border-orange-500/30">
-                PRO
-              </span>
-            )}
             <span className={`px-2 py-1 rounded text-xs ml-auto ${
               agent.status === 'active' ? 'bg-green-500/20 text-green-400' :
               agent.status === 'waiting' ? 'bg-yellow-500/20 text-yellow-400' :
@@ -206,22 +198,8 @@ export default function AgentDetailPage() {
                 
                 <div className="p-4 bg-zinc-800 rounded-lg">
                   <div className="text-sm text-zinc-400 mb-2">Display Name</div>
-                  <div className="text-white">{agent.emoji} {agent.name}</div>
+                  <div className="text-white">{agent.name}</div>
                 </div>
-                
-                {agent.isPro && (
-                  <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <svg className="w-5 h-5 text-orange-400" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z" />
-                      </svg>
-                      <div className="text-sm text-orange-400 font-medium">Specialized Agent (Pro)</div>
-                    </div>
-                    <div className="text-sm text-zinc-300">
-                      This agent has access to specialized workflows, repository-scoped workspaces, and ephemeral sandboxes.
-                    </div>
-                  </div>
-                )}
                 
                 <div className="p-4 bg-zinc-800 rounded-lg">
                   <div className="text-sm text-zinc-400 mb-2">Description</div>

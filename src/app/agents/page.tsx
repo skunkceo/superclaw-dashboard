@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 interface Agent {
   label: string;
   name: string;
-  emoji: string;
   description: string;
 }
 
@@ -49,7 +48,6 @@ export default function AgentsPage() {
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-6">Agents</h1>
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
-            <div className="text-6xl mb-4">🤖</div>
             <h2 className="text-xl font-semibold mb-2">No agents configured</h2>
             <p className="text-zinc-400 mb-6">
               Run <code className="px-2 py-1 bg-zinc-800 rounded text-orange-400">superclaw setup agents</code> to get started
@@ -90,14 +88,11 @@ export default function AgentsPage() {
               href={`/agents/${agent.label}`}
               className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg p-6 transition-all group"
             >
-              <div className="flex items-start gap-3 mb-3">
-                <span className="text-3xl">{agent.emoji}</span>
-                <div className="flex-1">
-                  <h3 className="font-semibold group-hover:text-orange-400 transition-colors">
-                    {agent.name}
-                  </h3>
-                  <div className="text-xs text-zinc-500 font-mono">{agent.label}</div>
-                </div>
+              <div className="mb-2">
+                <h3 className="font-semibold group-hover:text-orange-400 transition-colors">
+                  {agent.name}
+                </h3>
+                <div className="text-xs text-zinc-500 font-mono">{agent.label}</div>
               </div>
               <p className="text-sm text-zinc-400 line-clamp-2">
                 {agent.description}

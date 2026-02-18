@@ -9,7 +9,6 @@ export const dynamic = 'force-dynamic';
 interface AgentWorkspace {
   label: string;
   name: string;
-  emoji: string;
   workspacePath: string;
   hasMemory: boolean;
   memorySize: number;
@@ -44,15 +43,12 @@ export async function GET() {
         const memoryPath = path.join(agentPath, 'MEMORY.md');
         
         let name = label;
-        let emoji = '🤖';
         
         // Read identity if exists
         if (fs.existsSync(identityPath)) {
           const identity = fs.readFileSync(identityPath, 'utf-8');
           const nameMatch = identity.match(/\*\*Name:\*\*\s*(.+)/);
-          const emojiMatch = identity.match(/\*\*Emoji:\*\*\s*(.+)/);
           if (nameMatch) name = nameMatch[1].trim();
-          if (emojiMatch) emoji = emojiMatch[1].trim();
         }
         
         let memorySize = 0;
@@ -64,7 +60,6 @@ export async function GET() {
         workspaces.push({
           label,
           name,
-          emoji,
           workspacePath: agentPath,
           hasMemory: fs.existsSync(memoryPath),
           memorySize
@@ -154,7 +149,6 @@ export async function GET() {
       return {
         label: w.label,
         name: w.name,
-        emoji: w.emoji,
         description,
         hasMemory: w.hasMemory,
         memorySize: w.memorySize
