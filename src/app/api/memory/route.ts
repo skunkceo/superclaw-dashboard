@@ -3,18 +3,32 @@ import { readFile, readdir, stat } from 'fs/promises';
 import path from 'path';
 import { getCurrentUser, hasRole } from '@/lib/auth';
 
-// Read workspace path from environment or agent-specific path
+// Read workspace path from OpenClaw config, env override, or fallback
 async function getWorkspacePath(agentId?: string | null) {
   const homeDir = require('os').homedir();
-  const openclawWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
-  
-  if (agentId) {
-    // Agent-specific workspace
-    return path.join(openclawWorkspace, 'agents', agentId);
+  let mainWorkspace = process.env.OPENCLAW_WORKSPACE || path.join(homeDir, '.openclaw', 'workspace');
+
+  // Try reading from openclaw.json config
+  if (!process.env.OPENCLAW_WORKSPACE) {
+    try {
+      const configPath = path.join(homeDir, '.openclaw', 'openclaw.json');
+      const raw = await readFile(configPath, 'utf-8');
+      const config = JSON.parse(raw);
+      const configured = config?.agents?.main?.workspace || config?.agents?.defaults?.workspace || config?.workspace;
+      if (configured) {
+        mainWorkspace = configured;
+      }
+    } catch {
+      // Fall back to default
+    }
   }
-  
-  // Main workspace
-  return openclawWorkspace;
+
+  if (agentId) {
+    // Agent-specific workspace: check OpenClaw config for agent workspace first
+    return path.join(homeDir, '.openclaw', 'workspace', 'agents', agentId);
+  }
+
+  return mainWorkspace;
 }
 
 export async function GET(request: Request) {
