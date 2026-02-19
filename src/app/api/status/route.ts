@@ -572,7 +572,8 @@ export async function GET() {
             }
           }
         } catch {}
-        return 'Unknown';
+        // Final fallback: env var set at deploy time
+        return process.env.OPENCLAW_DEFAULT_MODEL || 'Unknown';
       })(),
     },
     tokens: {
