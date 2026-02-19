@@ -66,10 +66,9 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
   const navItems: Array<{ href: string; label: string; badge?: number }> = [
     { href: '/', label: 'Dashboard' },
     { href: '/agents', label: 'Agents' },
-    { href: '/router', label: 'Router' },
+    { href: '/initiatives', label: 'Initiatives' },
     { href: '/proactivity', label: 'Proactivity', badge: proactivityStats ? proactivityStats.pending + proactivityStats.unread : 0 },
     { href: '/reports', label: 'Reports' },
-    ...(hasRole('edit') ? [{ href: '/workspace', label: 'Workspace' }] : []),
   ];
 
   const isActive = (href: string) => {
@@ -250,8 +249,30 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
                       Upgrade to Pro
                     </Link>
                     <Link
-                      href="/errors"
+                      href="/router"
                       className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50 border-t border-zinc-700"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Router
+                    </Link>
+                    {hasRole('edit') && (
+                      <Link
+                        href="/workspace"
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50"
+                        onClick={() => setShowUserMenu(false)}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                        Workspace
+                      </Link>
+                    )}
+                    <Link
+                      href="/errors"
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-700/50"
                       onClick={() => setShowUserMenu(false)}
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

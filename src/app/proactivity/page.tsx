@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/components/AuthWrapper';
 import { useRouter } from 'next/navigation';
-import { CronJobModal } from '@/components/CronJobModal';
 
 // ─── Add Suggestion Modal ─────────────────────────────────────────────────────
 
@@ -449,7 +448,6 @@ export default function ProactivityPage() {
   // Cron jobs state
   interface CronJob { id: string; name: string; schedule: string; timezone: string | null; description: string; model: string | null; channel: string | null; enabled: boolean; nextRun: string | null; sessionTarget: string; }
   const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
-  const [selectedCronJob, setSelectedCronJob] = useState<CronJob | null>(null);
   const [cronToggling, setCronToggling] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
@@ -565,9 +563,6 @@ export default function ProactivityPage() {
       });
       if (res.ok) {
         setCronJobs(prev => prev.map(j => j.id === job.id ? { ...j, enabled: !job.enabled } : j));
-        if (selectedCronJob?.id === job.id) {
-          setSelectedCronJob(prev => prev ? { ...prev, enabled: !job.enabled } : null);
-        }
       }
     } finally {
       setCronToggling(null);
@@ -900,14 +895,6 @@ export default function ProactivityPage() {
         />
       )}
 
-      {/* Cron Job Modal */}
-      {selectedCronJob && (
-        <CronJobModal
-          job={{ ...selectedCronJob, nextRun: selectedCronJob.nextRun ?? undefined }}
-          onClose={() => setSelectedCronJob(null)}
-          onSave={handleCronSave}
-        />
-      )}
     </div>
   );
 }

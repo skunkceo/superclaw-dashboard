@@ -80,6 +80,68 @@ export async function GET() {
   return NextResponse.json({ jobs });
 }
 
+// PATCH — update a job's name, description/prompt, schedule, model, enabled
+export async function PATCH(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  let body: { jobId?: string; name?: string; description?: string; schedule?: string; model?: string; enabled?: boolean } = {};
+  try { body = await request.json(); } catch { /* ignore */ }
+
+  const { jobId } = body;
+  if (!jobId) return NextResponse.json({ error: 'jobId is required' }, { status: 400 });
+
+  const cronPath = getCronFilePath();
+  if (!cronPath) return NextResponse.json({ error: 'Cron file not found' }, { status: 404 });
+
+  try {
+    const raw = JSON.parse(readFileSync(cronPath, 'utf8'));
+    const jobs: any[] = raw.jobs || [];
+    const idx = jobs.findIndex((j: any) => (j.id || j.jobId) === jobId);
+    if (idx === -1) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+
+    const job = { ...jobs[idx] };
+
+    if (body.name !== undefined) job.name = body.name;
+    if (body.enabled !== undefined) job.enabled = body.enabled;
+
+    if (body.description !== undefined) {
+      if (!job.payload) job.payload = {};
+      if (job.payload.kind === 'systemEvent') {
+        job.payload.text = body.description;
+      } else {
+        job.payload.message = body.description;
+      }
+    }
+
+    if (body.model !== undefined) {
+      if (!job.payload) job.payload = {};
+      job.payload.model = body.model || undefined;
+    }
+
+    if (body.schedule !== undefined) {
+      const schedStr = body.schedule.trim();
+      const everyMatch = schedStr.match(/^every\s+(\d+)(m|h)$/i);
+      if (everyMatch) {
+        const val = parseInt(everyMatch[1]);
+        const unit = everyMatch[2].toLowerCase();
+        job.schedule = { kind: 'every', everyMs: unit === 'h' ? val * 3600000 : val * 60000 };
+      } else {
+        job.schedule = { kind: 'cron', expr: schedStr, tz: job.schedule?.tz || 'Europe/London' };
+      }
+    }
+
+    job.updatedAtMs = Date.now();
+    jobs[idx] = job;
+    writeFileSync(cronPath, JSON.stringify({ ...raw, jobs }, null, 2));
+
+    return NextResponse.json({ success: true, job: mapJob(job) });
+  } catch (err) {
+    console.error('Cron PATCH error:', err);
+    return NextResponse.json({ error: 'Failed to update job' }, { status: 500 });
+  }
+}
+
 // POST — toggle a job's enabled state
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
