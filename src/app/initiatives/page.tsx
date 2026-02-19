@@ -10,14 +10,13 @@ interface Issue {
   url: string;
   state: { name: string };
   priority: number;
-  updatedAt: string;
 }
 
 interface Project {
   id: string;
   name: string;
   url: string;
-  state: { name: string };
+  state: string;
   issues: { nodes: Issue[] };
 }
 
@@ -81,7 +80,7 @@ function InitiativeCard({ initiative }: { initiative: Initiative }) {
   const [expanded, setExpanded] = useState(true);
 
   const activeProjects = initiative.projects.nodes.filter(p =>
-    !p.state.name.toLowerCase().includes('complet') && !p.state.name.toLowerCase().includes('cancel')
+    !p.state.toLowerCase().includes('complet') && !p.state.toLowerCase().includes('cancel')
   );
   const totalIssues = initiative.projects.nodes.reduce((n, p) => n + p.issues.nodes.length, 0);
 
@@ -146,8 +145,8 @@ function InitiativeCard({ initiative }: { initiative: Initiative }) {
                     <div className="flex items-center justify-between gap-2 mb-2.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-sm font-medium text-zinc-200 truncate">{project.name}</span>
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${stateColor(project.state.name)}`}>
-                          {project.state.name}
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${stateColor(project.state)}`}>
+                          {project.state}
                         </span>
                       </div>
                       <a
@@ -179,7 +178,6 @@ function InitiativeCard({ initiative }: { initiative: Initiative }) {
                                 <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${stateColor(issue.state.name)}`}>
                                   {issue.state.name}
                                 </span>
-                                <span className="text-[10px] text-zinc-700">{timeAgo(issue.updatedAt)}</span>
                               </div>
                             </a>
                           );
