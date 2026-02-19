@@ -108,7 +108,17 @@ export default function ChatBubble() {
       <div className="fixed bottom-6 right-6 z-50">
         <button
           onClick={() => setIsOpen(true)}
-          className="w-14 h-14 rounded-full bg-black border border-zinc-800 hover:border-zinc-700 transition-colors flex items-center justify-center shadow-lg"
+          className="w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200"
+          style={{
+            background: 'linear-gradient(135deg, #FF8C00 0%, #CC5500 100%)',
+            boxShadow: '0 0 18px rgba(255, 107, 0, 0.55), 0 4px 12px rgba(0,0,0,0.4)',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 28px rgba(255, 107, 0, 0.8), 0 4px 16px rgba(0,0,0,0.4)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 18px rgba(255, 107, 0, 0.55), 0 4px 12px rgba(0,0,0,0.4)';
+          }}
           aria-label="Open chat"
         >
           <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
