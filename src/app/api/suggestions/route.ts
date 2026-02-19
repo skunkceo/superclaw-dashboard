@@ -45,6 +45,9 @@ export async function POST(request: Request) {
       status: 'pending' as const,
       priority: priority || 3,
       notes: notes || null,
+      linear_issue_id: null,
+      linear_identifier: null,
+      linear_url: null,
     };
 
     createSuggestion(suggestion);
