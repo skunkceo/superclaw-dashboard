@@ -223,20 +223,21 @@ export default function ReportsPage() {
   const [activityLoading, setActivityLoading] = useState(true);
   const [agentFilter, setAgentFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
+  const [lastFetched, setLastFetched] = useState<number | null>(null);
 
   // Reports state
   const [reports, setReports] = useState<Report[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportTypeFilter, setReportTypeFilter] = useState('all');
 
-  const fetchActivity = useCallback(() => {
-    setActivityLoading(true);
+  const fetchActivity = useCallback((silent = false) => {
+    if (!silent) setActivityLoading(true);
     const params = new URLSearchParams({ limit: '200' });
     if (agentFilter !== 'all') params.set('agent', agentFilter);
     if (actionFilter !== 'all') params.set('type', actionFilter);
     fetch(`/api/activity?${params}`)
       .then(r => r.json())
-      .then(d => { setEntries(d.entries || []); setActivityLoading(false); })
+      .then(d => { setEntries(d.entries || []); setLastFetched(Date.now()); setActivityLoading(false); })
       .catch(() => setActivityLoading(false));
   }, [agentFilter, actionFilter]);
 
@@ -250,6 +251,13 @@ export default function ReportsPage() {
 
   useEffect(() => { if (tab === 'activity') fetchActivity(); }, [tab, fetchActivity]);
   useEffect(() => { if (tab === 'reports') fetchReports(); }, [tab, fetchReports]);
+
+  // Auto-refresh activity every 30s without a loading flash
+  useEffect(() => {
+    if (tab !== 'activity') return;
+    const id = setInterval(() => fetchActivity(true), 30000);
+    return () => clearInterval(id);
+  }, [tab, fetchActivity]);
 
   // Group activity entries by date
   const grouped: { date: string; ts: number; entries: ActivityEntry[] }[] = [];
@@ -280,12 +288,19 @@ export default function ReportsPage() {
             </p>
           </div>
           {tab === 'activity' && (
-            <button
-              onClick={fetchActivity}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium transition-colors border border-zinc-700"
-            >
-              Refresh
-            </button>
+            <div className="flex items-center gap-3">
+              {lastFetched && (
+                <span className="text-xs text-zinc-600 hidden sm:block">
+                  Updated {timeAgo(lastFetched)} · auto-refreshing
+                </span>
+              )}
+              <button
+                onClick={() => fetchActivity()}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium transition-colors border border-zinc-700"
+              >
+                Refresh
+              </button>
+            </div>
           )}
         </div>
 
