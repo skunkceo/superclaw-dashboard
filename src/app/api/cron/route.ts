@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
+import { NextRequest, NextResponse } from 'next/server';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -48,21 +48,25 @@ function mapJob(job: any) {
   };
 }
 
-function readJobsFromFile(): any[] {
-  const cronPaths = [
-    '/root/.openclaw/cron/jobs.json',
-    '/root/.clawdbot/cron/jobs.json',
-  ];
+const CRON_PATHS = [
+  '/root/.openclaw/cron/jobs.json',
+  '/root/.clawdbot/cron/jobs.json',
+];
 
-  for (const cronPath of cronPaths) {
-    if (existsSync(cronPath)) {
-      try {
-        const data = JSON.parse(readFileSync(cronPath, 'utf8'));
-        return (data.jobs || []).map(mapJob);
-      } catch { continue; }
-    }
+function getCronFilePath(): string | null {
+  for (const p of CRON_PATHS) {
+    if (existsSync(p)) return p;
   }
-  return [];
+  return null;
+}
+
+function readJobsFromFile(): any[] {
+  const cronPath = getCronFilePath();
+  if (!cronPath) return [];
+  try {
+    const data = JSON.parse(readFileSync(cronPath, 'utf8'));
+    return (data.jobs || []).map(mapJob);
+  } catch { return []; }
 }
 
 export async function GET() {
@@ -74,4 +78,36 @@ export async function GET() {
   // Read directly from file — gateway doesn't expose a /cron REST endpoint
   const jobs = readJobsFromFile();
   return NextResponse.json({ jobs });
+}
+
+// PATCH/POST — toggle a job's enabled state
+export async function POST(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  let body: { jobId?: string; enabled?: boolean } = {};
+  try { body = await request.json(); } catch { /* ignore */ }
+
+  const { jobId, enabled } = body;
+  if (!jobId || enabled === undefined) {
+    return NextResponse.json({ error: 'jobId and enabled are required' }, { status: 400 });
+  }
+
+  const cronPath = getCronFilePath();
+  if (!cronPath) return NextResponse.json({ error: 'Cron file not found' }, { status: 404 });
+
+  try {
+    const raw = JSON.parse(readFileSync(cronPath, 'utf8'));
+    const jobs: any[] = raw.jobs || [];
+    const idx = jobs.findIndex((j: any) => (j.id || j.jobId) === jobId);
+    if (idx === -1) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+
+    jobs[idx] = { ...jobs[idx], enabled, updatedAtMs: Date.now() };
+    writeFileSync(cronPath, JSON.stringify({ ...raw, jobs }, null, 2));
+
+    return NextResponse.json({ success: true, jobId, enabled });
+  } catch (err) {
+    console.error('Cron toggle error:', err);
+    return NextResponse.json({ error: 'Failed to update job' }, { status: 500 });
+  }
 }

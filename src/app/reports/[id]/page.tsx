@@ -36,9 +36,9 @@ function renderMarkdown(md: string): string {
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code class="bg-zinc-800 text-orange-300 px-1.5 py-0.5 rounded text-xs">$1</code>');
   // Headings
-  html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold text-white mt-6 mb-2">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-white mt-8 mb-3">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold text-white mt-8 mb-4">$1</h1>');
+  html = html.replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold text-white mt-6 mb-2">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold text-white mt-8 mb-3">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 class="text-3xl font-bold text-white mt-8 mb-4">$1</h1>');
   // Bold & italic
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
   html = html.replace(/\*([^*]+)\*/g, '<em class="text-zinc-300">$1</em>');
@@ -46,14 +46,33 @@ function renderMarkdown(md: string): string {
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-orange-400 hover:text-orange-300 underline">$1</a>');
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr class="border-zinc-800 my-6">');
+  // Tables
+  html = html.replace(
+    /^(\|.+\|[ \t]*\n\|[-| :]+\|[ \t]*\n(?:\|.+\|[ \t]*\n?)+)/gm,
+    (match) => {
+      const lines = match.trim().split('\n');
+      const headerCells = lines[0].split('|').slice(1, -1).map(c => c.trim());
+      const bodyLines = lines.slice(2).filter(l => l.trim());
+      const thead = `<thead><tr>${headerCells.map(h =>
+        `<th class="px-4 py-3 text-left text-sm font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-700 whitespace-nowrap">${h}</th>`
+      ).join('')}</tr></thead>`;
+      const tbody = `<tbody class="divide-y divide-zinc-800/60">${bodyLines.map(line => {
+        const cells = line.split('|').slice(1, -1).map(c => c.trim());
+        return `<tr class="hover:bg-zinc-800/30 transition-colors">${cells.map(c =>
+          `<td class="px-4 py-3 text-base text-zinc-300">${c}</td>`
+        ).join('')}</tr>`;
+      }).join('')}</tbody>`;
+      return `<div class="overflow-x-auto my-6 rounded-lg border border-zinc-800"><table class="w-full text-base">${thead}${tbody}</table></div>\n`;
+    }
+  );
   // Unordered lists
-  html = html.replace(/^[*-] (.+)$/gm, '<li class="text-zinc-300 text-sm">$1</li>');
+  html = html.replace(/^[*-] (.+)$/gm, '<li class="text-zinc-300 text-lg">$1</li>');
   // Ordered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="text-zinc-300 text-sm">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li class="text-zinc-300 text-lg">$1</li>');
   // Wrap consecutive li items
-  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, (match) => `<ul class="list-disc list-inside space-y-1 my-3 pl-2">${match}</ul>`);
+  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, (match) => `<ul class="list-disc list-inside space-y-2 my-4 pl-2">${match}</ul>`);
   // Paragraphs (double newlines)
-  html = html.replace(/\n\n([^<])/g, '\n\n<p class="text-zinc-400 text-sm leading-relaxed mb-4">$1');
+  html = html.replace(/\n\n([^<])/g, '\n\n<p class="text-zinc-400 text-lg leading-relaxed mb-5">$1');
   html = html.replace(/([^>])\n\n/g, '$1</p>\n\n');
   // Single newlines in paragraphs
   html = html.replace(/([^>\n])\n([^<\n])/g, '$1<br>$2');
@@ -143,10 +162,10 @@ export default function ReportDetailPage() {
           </button>
         </div>
 
-        {/* Content */}
+        {/* Content — strip leading h1 since title is already shown in the header */}
         <div
           className="prose prose-invert max-w-none"
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(report.content) }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(report.content.replace(/^#[^\n]*\n+/, '')) }}
         />
       </div>
     </div>

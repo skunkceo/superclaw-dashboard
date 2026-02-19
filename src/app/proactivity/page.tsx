@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/components/AuthWrapper';
 import { useRouter } from 'next/navigation';
+import { CronJobModal } from '@/components/CronJobModal';
 
 // ─── Add Suggestion Modal ─────────────────────────────────────────────────────
 
@@ -445,13 +446,20 @@ export default function ProactivityPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [runHistory, setRunHistory] = useState<Array<{ id: string; started_at: number; completed_at: number | null; status: string; tasks_started: number; tasks_completed: number; summary: string | null }>>([]);
 
+  // Cron jobs state
+  interface CronJob { id: string; name: string; schedule: string; timezone: string | null; description: string; model: string | null; channel: string | null; enabled: boolean; nextRun: string | null; sessionTarget: string; }
+  const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
+  const [selectedCronJob, setSelectedCronJob] = useState<CronJob | null>(null);
+  const [cronToggling, setCronToggling] = useState<string | null>(null);
+
   const fetchAll = useCallback(async () => {
     try {
-      const [intelRes, sugRes, nightRes, historyRes] = await Promise.all([
+      const [intelRes, sugRes, nightRes, historyRes, cronRes] = await Promise.all([
         fetch('/api/intel?limit=100'),
         fetch('/api/suggestions?limit=200'),
         fetch('/api/overnight'),
         fetch('/api/overnight/history?limit=5'),
+        fetch('/api/cron'),
       ]);
 
       if (intelRes.ok) {
@@ -470,6 +478,10 @@ export default function ProactivityPage() {
       if (historyRes.ok) {
         const d = await historyRes.json();
         setRunHistory(d.runs || []);
+      }
+      if (cronRes.ok) {
+        const d = await cronRes.json();
+        setCronJobs(d.jobs || []);
       }
     } finally {
       setLoading(false);
@@ -539,6 +551,40 @@ export default function ProactivityPage() {
       if (!d.skipped) await fetchAll();
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleCronToggle = async (job: CronJob) => {
+    if (cronToggling) return;
+    setCronToggling(job.id);
+    try {
+      const res = await fetch('/api/cron', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id, enabled: !job.enabled }),
+      });
+      if (res.ok) {
+        setCronJobs(prev => prev.map(j => j.id === job.id ? { ...j, enabled: !job.enabled } : j));
+        if (selectedCronJob?.id === job.id) {
+          setSelectedCronJob(prev => prev ? { ...prev, enabled: !job.enabled } : null);
+        }
+      }
+    } finally {
+      setCronToggling(null);
+    }
+  };
+
+  const handleCronSave = async (jobId: string, updates: Partial<CronJob>) => {
+    // For now, only enabled toggle is supported via the API
+    if (updates.enabled !== undefined) {
+      const res = await fetch('/api/cron', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, enabled: updates.enabled }),
+      });
+      if (res.ok) {
+        setCronJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...updates } : j));
+      }
     }
   };
 
@@ -770,6 +816,69 @@ export default function ProactivityPage() {
           </div>
         )}
 
+        {/* Scheduled Jobs */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-white">Scheduled Jobs</h2>
+            <span className="text-xs text-zinc-500">{cronJobs.filter(j => j.enabled).length} of {cronJobs.length} active</span>
+          </div>
+
+          {cronJobs.length === 0 ? (
+            <div className="border border-zinc-800 rounded-xl p-6 text-center">
+              <div className="text-zinc-600 text-sm">No scheduled jobs found</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {cronJobs.map(job => (
+                <div
+                  key={job.id}
+                  className={`border rounded-xl p-4 transition-all ${job.enabled ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-800 bg-zinc-900/20 opacity-60'}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${job.enabled ? 'bg-green-400' : 'bg-zinc-600'}`} />
+                        <span className="text-sm font-medium text-white truncate">{job.name}</span>
+                      </div>
+                      <div className="text-xs text-zinc-500 mb-2 font-mono">{job.schedule}{job.timezone ? ` (${job.timezone})` : ''}</div>
+                      {job.nextRun && job.enabled && (
+                        <div className="text-xs text-zinc-600">
+                          Next: {timeAgo(new Date(job.nextRun).getTime()) === '0m ago' ? 'soon' : `in ~${Math.max(0, Math.round((new Date(job.nextRun).getTime() - Date.now()) / 60000))}m`}
+                        </div>
+                      )}
+                      {job.channel && (
+                        <div className="text-xs text-zinc-600 mt-1">Posts to {job.channel}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setSelectedCronJob(job)}
+                        className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors text-xs"
+                        title="View / edit"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleCronToggle(job)}
+                        disabled={cronToggling === job.id}
+                        title={job.enabled ? 'Disable job' : 'Enable job'}
+                        className={`w-8 h-5 rounded-full relative transition flex-shrink-0 focus:outline-none ${
+                          cronToggling === job.id ? 'opacity-50 cursor-wait' : 'cursor-pointer'
+                        } ${job.enabled ? 'bg-orange-500' : 'bg-zinc-600'}`}
+                      >
+                        <div className={`absolute w-4 h-4 rounded-full bg-white top-0.5 transition-all ${job.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* Add Suggestion Modal */}
@@ -777,6 +886,15 @@ export default function ProactivityPage() {
         <AddSuggestionModal
           onClose={() => setShowAddModal(false)}
           onAdded={fetchAll}
+        />
+      )}
+
+      {/* Cron Job Modal */}
+      {selectedCronJob && (
+        <CronJobModal
+          job={{ ...selectedCronJob, nextRun: selectedCronJob.nextRun ?? undefined }}
+          onClose={() => setSelectedCronJob(null)}
+          onSave={handleCronSave}
         />
       )}
     </div>

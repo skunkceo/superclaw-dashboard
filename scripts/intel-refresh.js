@@ -39,9 +39,88 @@ if (!BRAVE_KEY) {
   process.exit(1);
 }
 
+// ─── Memory context reader ────────────────────────────────────────────────────
+
+function readBusinessContext() {
+  const context = {
+    products: [],
+    competitors: [],
+    domains: [],
+    focus: [],
+  };
+
+  const workspacePaths = [
+    '/root/.openclaw/workspace/MEMORY.md',
+    '/root/clawd/MEMORY.md',
+  ];
+
+  for (const memPath of workspacePaths) {
+    if (!fs.existsSync(memPath)) continue;
+    const content = fs.readFileSync(memPath, 'utf8');
+
+    // Extract product names from table rows (| Product | ... |)
+    const productRows = content.match(/\|\s*([A-Z][a-z]+[A-Z][a-z]+)\s*\|[^|]+\|[^|]+(LIVE|BUILDING|COMING SOON)/g) || [];
+    for (const row of productRows) {
+      const m = row.match(/\|\s*([A-Z][a-z]+[A-Z][a-z]+)\s*\|/);
+      if (m) context.products.push(m[1]);
+    }
+
+    // Extract competitors from competitor lines
+    const competitorLines = content.match(/WPForms|Gravity Forms|FluentCRM|HubSpot|Ninja Forms|Fluent Forms|Jetpack Forms|Formidable|Zapier|ActiveCampaign/g) || [];
+    context.competitors.push(...new Set(competitorLines));
+
+    // Extract domains
+    const domainMatches = content.match(/skunk(?:crm|forms|pages|global|analytics|courses|memberships|social)\.com/g) || [];
+    context.domains.push(...new Set(domainMatches));
+
+    // Extract focus areas from Strategic Direction section
+    if (content.includes('SkunkForms is the lead product')) {
+      context.focus.push('WordPress form builders', 'CRM plugins');
+    }
+    if (content.includes('SEO is the #1 growth blocker')) {
+      context.focus.push('SEO growth', 'WordPress plugin SEO');
+    }
+
+    break; // Only need first found file
+  }
+
+  return context;
+}
+
+function buildDynamicQueries(context) {
+  const year = new Date().getFullYear();
+  const queries = [];
+
+  // Product-specific market queries
+  if (context.products.includes('SkunkForms') || context.focus.includes('WordPress form builders')) {
+    queries.push({ query: `WordPress form builder trends ${year}`, category: 'market' });
+    queries.push({ query: 'contact form plugin WordPress alternatives', category: 'opportunity' });
+  }
+  if (context.products.includes('SkunkCRM')) {
+    queries.push({ query: `WordPress CRM plugin comparison ${year}`, category: 'seo' });
+  }
+
+  // Competitor queries from memory
+  for (const comp of context.competitors.slice(0, 3)) {
+    queries.push({ query: `${comp} update ${year}`, category: 'competitor' });
+  }
+
+  // SEO queries for known domains
+  if (context.domains.length > 0) {
+    queries.push({ query: 'WordPress plugin indie developer growth strategy', category: 'opportunity' });
+    queries.push({ query: 'small WordPress plugin business scaling tips', category: 'opportunity' });
+  }
+
+  return queries;
+}
+
 // ─── Search queries ───────────────────────────────────────────────────────────
 
-const QUERIES = [
+// Read business context from memory files
+const businessContext = readBusinessContext();
+const dynamicQueries = buildDynamicQueries(businessContext);
+
+const BASE_QUERIES = [
   { query: 'WordPress CRM plugin news 2026', category: 'market' },
   { query: 'WordPress forms plugin update release 2026', category: 'market' },
   { query: 'WPForms update new features 2026', category: 'competitor' },
@@ -53,6 +132,13 @@ const QUERIES = [
   { query: 'WordPress plugin business growth strategy', category: 'opportunity' },
   { query: 'small business WordPress plugin alternatives SaaS', category: 'opportunity' },
   { query: 'WordPress developer community news this week', category: 'wordpress' },
+];
+
+// Merge — deduplicate by query string, dynamic ones supplement base
+const seenQueries = new Set(BASE_QUERIES.map(q => q.query.toLowerCase()));
+const QUERIES = [
+  ...BASE_QUERIES,
+  ...dynamicQueries.filter(q => !seenQueries.has(q.query.toLowerCase())),
 ];
 
 // ─── Brave search ─────────────────────────────────────────────────────────────
