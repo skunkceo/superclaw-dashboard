@@ -585,9 +585,9 @@ export interface Suggestion {
   actioned_at: number | null;
   notes: string | null;
   report_id: string | null;
-  linear_issue_id: string | null;
-  linear_identifier: string | null;
-  linear_url: string | null;
+  linear_issue_id?: string | null;
+  linear_identifier?: string | null;
+  linear_url?: string | null;
 }
 
 export function getAllSuggestions(filters?: { status?: string; limit?: number }): Suggestion[] {
