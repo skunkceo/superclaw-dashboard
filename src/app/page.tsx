@@ -24,6 +24,15 @@ interface AgentData {
 
 interface ActivityEntry { id:string; timestamp:number; agent_label:string; action_type:string; summary:string; details?:string; links?:string; }
 
+function labelToPortrait(label: string): string {
+  let h = 0;
+  for (let i = 0; i < label.length; i++) h = Math.imul(31, h) + label.charCodeAt(i) | 0;
+  const abs = Math.abs(h);
+  const gender = abs % 2 === 0 ? 'men' : 'women';
+  const idx = abs % 70; // randomuser has 0-99 but 70 is safe range
+  return `https://randomuser.me/api/portraits/thumb/${gender}/${idx}.jpg`;
+}
+
 function AgentAvatarRow({ agentData }: { agentData: AgentData | null }) {
   const agents = agentData?.workspaces.map(w => { const s = agentData.sessions.find(s => s.label === w.label); return { ...w, status: s?.status || 'idle' }; }) || [];
   const activeCount = agents.filter(a => a.status === 'active').length;
@@ -33,8 +42,9 @@ function AgentAvatarRow({ agentData }: { agentData: AgentData | null }) {
       <div className="flex items-center gap-1.5">
         {agents.map(agent => (
           <Link key={agent.label} href="/agents" title={agent.name} className="relative group">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold bg-zinc-800 border transition-all ${agent.status==='active'?'border-orange-500/60 hover:border-orange-500 text-orange-400':'border-zinc-700 hover:border-zinc-600 text-zinc-500'}`}>
-              {(agent.name||agent.label).slice(0,2).toUpperCase()}
+            <div className={`w-8 h-8 rounded-full overflow-hidden border-2 transition-all flex-shrink-0 ${agent.status==='active'?'border-orange-500/70 hover:border-orange-500':'border-zinc-700 hover:border-zinc-600'}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={labelToPortrait(agent.label)} alt={agent.name} className="w-full h-full object-cover" />
             </div>
             <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border-2 border-zinc-950 ${agent.status==='active'?'bg-green-400':'bg-zinc-700'}`} />
             <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 bg-zinc-800 text-zinc-200 text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10">{agent.name}</span>
