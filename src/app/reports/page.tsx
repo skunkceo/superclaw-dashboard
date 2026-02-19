@@ -277,7 +277,7 @@ export default function ReportsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
 
         {/* Header */}
         <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
@@ -443,23 +443,33 @@ export default function ReportsPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredReports.map(report => (
+              <div className="border border-zinc-800 rounded-xl overflow-hidden divide-y divide-zinc-800/70">
+                {filteredReports.map((report, i) => (
                   <Link
                     key={report.id}
                     href={`/reports/${report.id}`}
-                    className="block border border-zinc-800 hover:border-zinc-700 bg-zinc-900/50 hover:bg-zinc-900 rounded-xl p-5 transition-all group"
+                    className="flex items-center gap-4 px-5 py-4 hover:bg-zinc-900 transition-colors group"
                   >
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${REPORT_TYPE_COLORS[report.type] || REPORT_TYPE_COLORS.general}`}>
-                        {REPORT_TYPE_LABELS[report.type] || report.type}
-                      </span>
-                      <span className="text-xs text-zinc-600">{timeAgo(report.created_at)}</span>
-                    </div>
-                    <h3 className="text-base font-semibold text-white group-hover:text-orange-400 transition-colors leading-snug mb-2">
+                    {/* Type badge */}
+                    <span className={`text-xs px-2.5 py-1 rounded-full border font-medium shrink-0 w-24 text-center ${REPORT_TYPE_COLORS[report.type] || REPORT_TYPE_COLORS.general}`}>
+                      {REPORT_TYPE_LABELS[report.type] || report.type}
+                    </span>
+
+                    {/* Title */}
+                    <h3 className="flex-1 text-sm font-medium text-zinc-200 group-hover:text-white transition-colors leading-snug truncate">
                       {report.title}
                     </h3>
-                    <div className="text-sm text-zinc-600">{formatDate(report.created_at)}</div>
+
+                    {/* Date */}
+                    <div className="shrink-0 text-right hidden sm:block">
+                      <div className="text-xs text-zinc-500">{formatDateShort(report.created_at)}</div>
+                      <div className="text-xs text-zinc-700">{timeAgo(report.created_at)}</div>
+                    </div>
+
+                    {/* Arrow */}
+                    <svg className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
                   </Link>
                 ))}
               </div>
