@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/components/AuthWrapper';
 import { useRouter } from 'next/navigation';
-import { CronJobModal } from '@/components/CronJobModal';
 
 // ─── Add Suggestion Modal ─────────────────────────────────────────────────────
 
@@ -449,7 +448,6 @@ export default function ProactivityPage() {
   // Cron jobs state
   interface CronJob { id: string; name: string; schedule: string; timezone: string | null; description: string; model: string | null; channel: string | null; enabled: boolean; nextRun: string | null; sessionTarget: string; }
   const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
-  const [selectedCronJob, setSelectedCronJob] = useState<CronJob | null>(null);
   const [cronToggling, setCronToggling] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
@@ -565,26 +563,9 @@ export default function ProactivityPage() {
       });
       if (res.ok) {
         setCronJobs(prev => prev.map(j => j.id === job.id ? { ...j, enabled: !job.enabled } : j));
-        if (selectedCronJob?.id === job.id) {
-          setSelectedCronJob(prev => prev ? { ...prev, enabled: !job.enabled } : null);
-        }
       }
     } finally {
       setCronToggling(null);
-    }
-  };
-
-  const handleCronSave = async (jobId: string, updates: Partial<CronJob>) => {
-    // For now, only enabled toggle is supported via the API
-    if (updates.enabled !== undefined) {
-      const res = await fetch('/api/cron', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, enabled: updates.enabled }),
-      });
-      if (res.ok) {
-        setCronJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...updates } : j));
-      }
     }
   };
 
@@ -852,13 +833,12 @@ export default function ProactivityPage() {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
-                        onClick={() => setSelectedCronJob(job)}
+                        onClick={() => router.push(`/jobs/${job.id}`)}
                         className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors text-xs"
-                        title="View / edit"
+                        title="Edit job"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                       </button>
                       <button
@@ -889,14 +869,6 @@ export default function ProactivityPage() {
         />
       )}
 
-      {/* Cron Job Modal */}
-      {selectedCronJob && (
-        <CronJobModal
-          job={{ ...selectedCronJob, nextRun: selectedCronJob.nextRun ?? undefined }}
-          onClose={() => setSelectedCronJob(null)}
-          onSave={handleCronSave}
-        />
-      )}
     </div>
   );
 }
