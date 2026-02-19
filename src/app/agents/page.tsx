@@ -121,7 +121,7 @@ function AgentCard({ agent, session }: { agent: Agent; session?: AgentSession })
 
       {/* Hover info panel */}
       {hovered && (
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-20 w-72 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-4 pointer-events-none">
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[60] w-72 bg-zinc-800 border border-zinc-700 rounded-xl shadow-2xl p-4 pointer-events-none">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full overflow-hidden border border-zinc-600 flex-shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
