@@ -158,6 +158,9 @@ export async function generateSuggestionsFromIntel(): Promise<GenerateResult> {
         status: 'pending',
         priority: template.priority,
         notes: null,
+        linear_issue_id: null,
+        linear_identifier: null,
+        linear_url: null,
       });
 
       result.fromIntel++;
@@ -174,6 +177,9 @@ export async function generateSuggestionsFromIntel(): Promise<GenerateResult> {
       source_intel_ids: '[]',
       status: 'pending',
       notes: null,
+      linear_issue_id: null,
+      linear_identifier: null,
+      linear_url: null,
     });
     result.standing++;
   }
