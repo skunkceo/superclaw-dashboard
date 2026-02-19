@@ -705,6 +705,72 @@ export function createReport(r: Omit<Report, 'created_at'>): void {
   `).run(r.id, r.title, r.type, r.content, r.suggestion_id, r.overnight_run_id);
 }
 
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS activity_log (
+    id TEXT PRIMARY KEY,
+    timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+    agent_label TEXT NOT NULL DEFAULT 'main',
+    action_type TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    details TEXT,
+    links TEXT DEFAULT '[]',
+    task_id TEXT,
+    session_key TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_activity_timestamp ON activity_log(timestamp);
+  CREATE INDEX IF NOT EXISTS idx_activity_agent ON activity_log(agent_label);
+  CREATE INDEX IF NOT EXISTS idx_activity_action ON activity_log(action_type);
+`);
+
+export interface ActivityEntry {
+  id: string;
+  timestamp: number;
+  agent_label: string;
+  action_type: string;
+  summary: string;
+  details: string | null;
+  links: string;
+  task_id: string | null;
+  session_key: string | null;
+}
+
+export function createActivityEntry(entry: Omit<ActivityEntry, 'timestamp'>): void {
+  db.prepare(`
+    INSERT INTO activity_log (id, timestamp, agent_label, action_type, summary, details, links, task_id, session_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    entry.id,
+    Date.now(),
+    entry.agent_label,
+    entry.action_type,
+    entry.summary,
+    entry.details || null,
+    entry.links || '[]',
+    entry.task_id || null,
+    entry.session_key || null,
+  );
+}
+
+export function getActivityLog(filters?: {
+  agent_label?: string;
+  action_type?: string;
+  since?: number;
+  limit?: number;
+}): ActivityEntry[] {
+  let query = 'SELECT * FROM activity_log';
+  const conditions: string[] = [];
+  const values: (string | number)[] = [];
+  if (filters?.agent_label) { conditions.push('agent_label = ?'); values.push(filters.agent_label); }
+  if (filters?.action_type) { conditions.push('action_type = ?'); values.push(filters.action_type); }
+  if (filters?.since) { conditions.push('timestamp >= ?'); values.push(filters.since); }
+  if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+  query += ' ORDER BY timestamp DESC';
+  if (filters?.limit) { query += ' LIMIT ?'; values.push(filters.limit); }
+  return db.prepare(query).all(...values) as ActivityEntry[];
+}
+
 // ─── Proactivity settings ─────────────────────────────────────────────────────
 
 export function getProactivitySetting(key: string): string | null {
