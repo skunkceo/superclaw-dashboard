@@ -300,6 +300,15 @@ async function main() {
     elapsedSeconds: elapsed,
   };
 
+  // Log to activity feed
+  try {
+    const { randomUUID: uuid } = require('crypto');
+    const summary = `Intel refresh: ${newItems.length} new signals, ${intelSugAdded + standingAdded} suggestions (${queriesRun} queries, ${elapsed}s)`;
+    const details = `Queries: ${queriesRun} | New intel: ${newItems.length} | Skipped dupes: ${skipped} | Suggestions from intel: ${intelSugAdded} | Standing suggestions: ${standingAdded} | Elapsed: ${elapsed}s`;
+    db.prepare(`INSERT INTO activity_log (id, timestamp, agent_label, action_type, summary, details, links) VALUES (?, ?, 'intel-cron', 'intel', ?, ?, '[]')`)
+      .run(uuid(), Date.now(), summary, details);
+  } catch (e) { /* non-fatal */ }
+
   console.log(JSON.stringify(result, null, 2));
 }
 

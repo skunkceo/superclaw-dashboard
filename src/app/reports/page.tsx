@@ -54,22 +54,30 @@ function formatDateShort(ts: number): string {
 // ─── Action type config ───────────────────────────────────────────────────────
 
 const ACTION_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  started:   { label: 'Started',   color: 'bg-blue-500/15 text-blue-400 border-blue-500/30',     dot: 'bg-blue-400' },
-  completed: { label: 'Completed', color: 'bg-green-500/15 text-green-400 border-green-500/30',  dot: 'bg-green-400' },
-  blocked:   { label: 'Blocked',   color: 'bg-red-500/15 text-red-400 border-red-500/30',        dot: 'bg-red-400' },
-  error:     { label: 'Error',     color: 'bg-red-500/15 text-red-400 border-red-500/30',        dot: 'bg-red-400' },
-  commit:    { label: 'Commit',    color: 'bg-violet-500/15 text-violet-400 border-violet-500/30', dot: 'bg-violet-400' },
-  pr_opened: { label: 'PR',        color: 'bg-purple-500/15 text-purple-400 border-purple-500/30', dot: 'bg-purple-400' },
-  research:  { label: 'Research',  color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', dot: 'bg-yellow-400' },
-  analysis:  { label: 'Analysis',  color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', dot: 'bg-yellow-400' },
-  report:    { label: 'Report',    color: 'bg-orange-500/15 text-orange-400 border-orange-500/30', dot: 'bg-orange-400' },
-  content:   { label: 'Content',   color: 'bg-pink-500/15 text-pink-400 border-pink-500/30',     dot: 'bg-pink-400' },
-  writing:   { label: 'Writing',   color: 'bg-pink-500/15 text-pink-400 border-pink-500/30',     dot: 'bg-pink-400' },
-  outreach:  { label: 'Outreach',  color: 'bg-teal-500/15 text-teal-400 border-teal-500/30',     dot: 'bg-teal-400' },
-  audit:     { label: 'Audit',     color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',     dot: 'bg-cyan-400' },
-  sync:      { label: 'Sync',      color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',     dot: 'bg-cyan-400' },
-  deploy:    { label: 'Deploy',    color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400' },
-  info:      { label: 'Info',      color: 'bg-zinc-500/15 text-zinc-400 border-zinc-700',        dot: 'bg-zinc-500' },
+  started:    { label: 'Started',    color: 'bg-blue-500/15 text-blue-400 border-blue-500/30',      dot: 'bg-blue-400' },
+  completed:  { label: 'Completed',  color: 'bg-green-500/15 text-green-400 border-green-500/30',   dot: 'bg-green-400' },
+  blocked:    { label: 'Blocked',    color: 'bg-red-500/15 text-red-400 border-red-500/30',         dot: 'bg-red-400' },
+  error:      { label: 'Error',      color: 'bg-red-500/15 text-red-400 border-red-500/30',         dot: 'bg-red-400' },
+  commit:     { label: 'Commit',     color: 'bg-violet-500/15 text-violet-400 border-violet-500/30', dot: 'bg-violet-400' },
+  pr_opened:  { label: 'PR',         color: 'bg-purple-500/15 text-purple-400 border-purple-500/30', dot: 'bg-purple-400' },
+  research:   { label: 'Research',   color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', dot: 'bg-yellow-400' },
+  analysis:   { label: 'Analysis',   color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', dot: 'bg-yellow-400' },
+  report:     { label: 'Report',     color: 'bg-orange-500/15 text-orange-400 border-orange-500/30', dot: 'bg-orange-400' },
+  content:    { label: 'Content',    color: 'bg-pink-500/15 text-pink-400 border-pink-500/30',      dot: 'bg-pink-400' },
+  writing:    { label: 'Writing',    color: 'bg-pink-500/15 text-pink-400 border-pink-500/30',      dot: 'bg-pink-400' },
+  outreach:   { label: 'Outreach',   color: 'bg-teal-500/15 text-teal-400 border-teal-500/30',      dot: 'bg-teal-400' },
+  audit:      { label: 'Audit',      color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',      dot: 'bg-cyan-400' },
+  sync:       { label: 'Sync',       color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',      dot: 'bg-cyan-400' },
+  deploy:     { label: 'Deploy',     color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400' },
+  info:       { label: 'Info',       color: 'bg-zinc-500/15 text-zinc-400 border-zinc-700',         dot: 'bg-zinc-500' },
+  // Regular background / monitoring jobs
+  heartbeat:  { label: 'Heartbeat',  color: 'bg-zinc-500/15 text-zinc-400 border-zinc-700',         dot: 'bg-zinc-600' },
+  site_check: { label: 'Site check', color: 'bg-green-500/15 text-green-400 border-green-500/30',   dot: 'bg-green-400' },
+  intel:      { label: 'Intel',      color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', dot: 'bg-yellow-500' },
+  cron:       { label: 'Cron job',   color: 'bg-zinc-500/15 text-zinc-400 border-zinc-700',         dot: 'bg-zinc-500' },
+  monitoring: { label: 'Monitoring', color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',      dot: 'bg-cyan-400' },
+  bug_fix:    { label: 'Bug fix',    color: 'bg-orange-500/15 text-orange-400 border-orange-500/30', dot: 'bg-orange-400' },
+  check:      { label: 'Check',      color: 'bg-zinc-500/15 text-zinc-400 border-zinc-700',         dot: 'bg-zinc-500' },
 };
 
 function getActionConfig(type: string) {
@@ -79,14 +87,26 @@ function getActionConfig(type: string) {
 // ─── Agent label config ───────────────────────────────────────────────────────
 
 const AGENT_COLORS: Record<string, string> = {
-  main:           'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  'coding-agent': 'bg-violet-500/20 text-violet-300 border-violet-500/30',
-  'content-agent':'bg-pink-500/20 text-pink-300 border-pink-500/30',
-  'seo-agent':    'bg-green-500/20 text-green-300 border-green-500/30',
+  main:             'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  'coding-agent':   'bg-violet-500/20 text-violet-300 border-violet-500/30',
+  'content-agent':  'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  'seo-agent':      'bg-green-500/20 text-green-300 border-green-500/30',
+  'research-agent': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  'intel-cron':     'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  'check-in-cron':  'bg-zinc-500/20 text-zinc-300 border-zinc-700',
+  'overnight-cron': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
 };
 
-function getAgentColor(label: string) {
-  return AGENT_COLORS[label] || 'bg-zinc-500/20 text-zinc-300 border-zinc-700';
+function getAgentColor(label: string): string {
+  for (const [key, val] of Object.entries(AGENT_COLORS)) {
+    if (label === key || label.startsWith(key)) return val;
+  }
+  return 'bg-zinc-500/20 text-zinc-300 border-zinc-700';
+}
+
+function formatAgentLabel(label: string): string {
+  if (label === 'main') return 'Clawd';
+  return label.replace(/-/g, ' ');
 }
 
 // ─── Activity entry component ─────────────────────────────────────────────────
@@ -112,7 +132,7 @@ function ActivityItem({ entry }: { entry: ActivityEntry }) {
             {action.label}
           </span>
           <span className={`text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${getAgentColor(entry.agent_label)}`}>
-            {entry.agent_label}
+            {formatAgentLabel(entry.agent_label)}
           </span>
           <span className="text-xs text-zinc-600 ml-auto shrink-0">
             {formatTime(entry.timestamp)} · {timeAgo(entry.timestamp)}
@@ -303,15 +323,16 @@ export default function ReportsPage() {
         {tab === 'activity' && (
           <>
             {/* Filters */}
-            {(allAgents.length > 1 || allActions.length > 1) && (
-              <div className="flex gap-3 mb-6 flex-wrap items-center">
+            {(allAgents.length > 0 || allActions.length > 0) && (
+              <div className="flex flex-col gap-3 mb-6">
                 {allAgents.length > 1 && (
-                  <div className="flex gap-1.5 flex-wrap">
+                  <div className="flex gap-1.5 flex-wrap items-center">
+                    <span className="text-xs text-zinc-600 w-8 shrink-0">Agent</span>
                     <button
                       onClick={() => setAgentFilter('all')}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${agentFilter === 'all' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
-                      All agents
+                      All
                     </button>
                     {allAgents.map(a => (
                       <button
@@ -319,7 +340,27 @@ export default function ReportsPage() {
                         onClick={() => setAgentFilter(a)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${agentFilter === a ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                       >
-                        {a}
+                        {formatAgentLabel(a)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {allActions.length > 1 && (
+                  <div className="flex gap-1.5 flex-wrap items-center">
+                    <span className="text-xs text-zinc-600 w-8 shrink-0">Type</span>
+                    <button
+                      onClick={() => setActionFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${actionFilter === 'all' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      All
+                    </button>
+                    {allActions.map(a => (
+                      <button
+                        key={a}
+                        onClick={() => setActionFilter(a)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${actionFilter === a ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >
+                        {getActionConfig(a).label}
                       </button>
                     ))}
                   </div>
