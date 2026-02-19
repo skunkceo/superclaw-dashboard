@@ -142,19 +142,19 @@ export default function Dashboard() {
           <div className="ml-auto"><Link href="/launchpad" className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-lg text-xs font-medium hover:bg-orange-500/20 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Launchpad</Link></div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {(['SOUL.md','MEMORY.md','TOOLS.md','HEARTBEAT.md'] as const).map(file=>(
-            <Link key={file} href={file==='MEMORY.md'?'/memory':`/workspace?file=${file}`} className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors font-mono">{file}</Link>
-          ))}
-          <Link href="/workspace" className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">All files →</Link>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            {(['SOUL.md','MEMORY.md','TOOLS.md','HEARTBEAT.md'] as const).map(file=>(
+              <Link key={file} href={file==='MEMORY.md'?'/memory':`/workspace?file=${file}`} className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors font-mono">{file}</Link>
+            ))}
+            <Link href="/workspace" className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">All files →</Link>
+          </div>
+          <AgentAvatarRow agentData={agentData}/>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <ProactivityBanner />
-          <div className="flex flex-col gap-3">
-            <AgentAvatarRow agentData={agentData}/>
-            <TokenUsage tokens={data.tokens} subscription={data.subscription}/>
-          </div>
+          <TokenUsage tokens={data.tokens} subscription={data.subscription}/>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
