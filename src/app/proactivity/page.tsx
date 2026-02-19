@@ -237,7 +237,7 @@ function IntelCard({ item, onRead, onDelete }: { item: IntelItem; onRead: (id: s
               </a>
             ) : item.title}
           </h3>
-          <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2">{item.summary}</p>
+          <p className="text-xs text-zinc-500 leading-relaxed">{item.summary}</p>
           <div className="text-xs text-zinc-700 mt-2">{timeAgo(item.created_at)}</div>
         </div>
         <div className="flex flex-col gap-1 flex-shrink-0">
@@ -575,16 +575,19 @@ export default function ProactivityPage() {
   };
 
   const handleCronSave = async (jobId: string, updates: Partial<CronJob>) => {
-    // For now, only enabled toggle is supported via the API
-    if (updates.enabled !== undefined) {
-      const res = await fetch('/api/cron', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, enabled: updates.enabled }),
-      });
-      if (res.ok) {
-        setCronJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...updates } : j));
+    const res = await fetch('/api/cron', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, ...updates }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setCronJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...(data.job || updates) } : j));
+      if (selectedCronJob?.id === jobId) {
+        setSelectedCronJob(prev => prev ? { ...prev, ...(data.job || updates) } : null);
       }
+    } else {
+      throw new Error('Failed to save job');
     }
   };
 
@@ -657,16 +660,85 @@ export default function ProactivityPage() {
           <StatCard label="Completed" value={suggestionStats.completed} />
         </div>
 
-        {/* Overnight Mode Panel */}
-        {overnight && (
-          <div className="mb-8">
-            <OvernightPanel
-              overnight={overnight}
-              onAction={handleOvernightAction}
-              onRefreshOvernightState={() => { fetch('/api/overnight').then(r => r.json()).then(setOvernight); }}
-            />
+        {/* Control Row: Overnight Mode + Scheduled Jobs */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Overnight Mode */}
+          <div className="lg:col-span-1">
+            {overnight ? (
+              <OvernightPanel
+                overnight={overnight}
+                onAction={handleOvernightAction}
+                onRefreshOvernightState={() => { fetch('/api/overnight').then(r => r.json()).then(setOvernight); }}
+              />
+            ) : (
+              <div className="border border-zinc-700 bg-zinc-900/50 rounded-xl p-6 h-full flex items-center justify-center">
+                <span className="text-zinc-600 text-sm">Loading...</span>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Scheduled Jobs */}
+          <div className="lg:col-span-2">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-white">Scheduled Jobs</h2>
+              <span className="text-xs text-zinc-500">{cronJobs.filter(j => j.enabled).length} of {cronJobs.length} active</span>
+            </div>
+
+            {cronJobs.length === 0 ? (
+              <div className="border border-zinc-800 rounded-xl p-6 text-center h-32 flex items-center justify-center">
+                <div className="text-zinc-600 text-sm">No scheduled jobs found</div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {cronJobs.map(job => (
+                  <div
+                    key={job.id}
+                    className={`border rounded-xl p-3.5 transition-all ${job.enabled ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-800 bg-zinc-900/20 opacity-60'}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${job.enabled ? 'bg-green-400' : 'bg-zinc-600'}`} />
+                          <span className="text-sm font-medium text-white truncate">{job.name}</span>
+                        </div>
+                        <div className="text-xs text-zinc-500 mb-1.5 font-mono">{job.schedule}{job.timezone ? ` (${job.timezone})` : ''}</div>
+                        {job.nextRun && job.enabled && (
+                          <div className="text-xs text-zinc-600">
+                            Next: {Math.max(0, Math.round((new Date(job.nextRun).getTime() - Date.now()) / 60000)) < 1 ? 'soon' : `in ~${Math.max(0, Math.round((new Date(job.nextRun).getTime() - Date.now()) / 60000))}m`}
+                          </div>
+                        )}
+                        {job.channel && (
+                          <div className="text-xs text-zinc-600 mt-0.5">Posts to {job.channel}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => setSelectedCronJob(job)}
+                          className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors"
+                          title="View / edit"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleCronToggle(job)}
+                          disabled={cronToggling === job.id}
+                          title={job.enabled ? 'Disable job' : 'Enable job'}
+                          className={`w-8 h-5 rounded-full relative transition flex-shrink-0 focus:outline-none ${
+                            cronToggling === job.id ? 'opacity-50 cursor-wait' : 'cursor-pointer'
+                          } ${job.enabled ? 'bg-orange-500' : 'bg-zinc-600'}`}
+                        >
+                          <div className={`absolute w-4 h-4 rounded-full bg-white top-0.5 transition-all ${job.enabled ? 'left-3.5' : 'left-0.5'}`} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -816,68 +888,7 @@ export default function ProactivityPage() {
           </div>
         )}
 
-        {/* Scheduled Jobs */}
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-white">Scheduled Jobs</h2>
-            <span className="text-xs text-zinc-500">{cronJobs.filter(j => j.enabled).length} of {cronJobs.length} active</span>
-          </div>
-
-          {cronJobs.length === 0 ? (
-            <div className="border border-zinc-800 rounded-xl p-6 text-center">
-              <div className="text-zinc-600 text-sm">No scheduled jobs found</div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {cronJobs.map(job => (
-                <div
-                  key={job.id}
-                  className={`border rounded-xl p-4 transition-all ${job.enabled ? 'border-zinc-700 bg-zinc-900/50' : 'border-zinc-800 bg-zinc-900/20 opacity-60'}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${job.enabled ? 'bg-green-400' : 'bg-zinc-600'}`} />
-                        <span className="text-sm font-medium text-white truncate">{job.name}</span>
-                      </div>
-                      <div className="text-xs text-zinc-500 mb-2 font-mono">{job.schedule}{job.timezone ? ` (${job.timezone})` : ''}</div>
-                      {job.nextRun && job.enabled && (
-                        <div className="text-xs text-zinc-600">
-                          Next: {timeAgo(new Date(job.nextRun).getTime()) === '0m ago' ? 'soon' : `in ~${Math.max(0, Math.round((new Date(job.nextRun).getTime() - Date.now()) / 60000))}m`}
-                        </div>
-                      )}
-                      {job.channel && (
-                        <div className="text-xs text-zinc-600 mt-1">Posts to {job.channel}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => setSelectedCronJob(job)}
-                        className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors text-xs"
-                        title="View / edit"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleCronToggle(job)}
-                        disabled={cronToggling === job.id}
-                        title={job.enabled ? 'Disable job' : 'Enable job'}
-                        className={`w-8 h-5 rounded-full relative transition flex-shrink-0 focus:outline-none ${
-                          cronToggling === job.id ? 'opacity-50 cursor-wait' : 'cursor-pointer'
-                        } ${job.enabled ? 'bg-orange-500' : 'bg-zinc-600'}`}
-                      >
-                        <div className={`absolute w-4 h-4 rounded-full bg-white top-0.5 transition-all ${job.enabled ? 'left-3.5' : 'left-0.5'}`} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Scheduled Jobs section removed from here — moved to top alongside Overnight Mode */}
 
       </div>
 
