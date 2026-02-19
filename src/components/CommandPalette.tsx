@@ -62,7 +62,8 @@ const STATIC_COMMANDS: Command[] = [
   { id: 'nav-sessions', label: 'Sessions', description: 'Active agent sessions', category: 'Navigate', kind: 'navigate', href: '/sessions', icon: '◷' },
   { id: 'nav-agents', label: 'Agents', description: 'Agent definitions and status', category: 'Navigate', kind: 'navigate', href: '/agents', icon: '◬' },
   { id: 'nav-settings', label: 'Settings', description: 'Dashboard configuration', category: 'Navigate', kind: 'navigate', href: '/settings', icon: '⚙' },
-  { id: 'nav-reports', label: 'Reports', description: 'Overlord sprint and analysis reports', category: 'Navigate', kind: 'navigate', href: '/reports', icon: '▤' },
+  { id: 'nav-reports', label: 'Reports', description: 'Sprint, research and analysis reports', category: 'Navigate', kind: 'navigate', href: '/reports', icon: '▤' },
+  { id: 'nav-activity', label: 'Activity', description: 'Full activity log from Clawd and agents', category: 'Navigate', kind: 'navigate', href: '/activity', icon: '◎' },
   { id: 'nav-versions', label: 'Versions', description: 'Plugin version tracking', category: 'Navigate', kind: 'navigate', href: '/versions', icon: '⊕' },
   { id: 'nav-jobs', label: 'Jobs', description: 'Scheduled job detail view', category: 'Navigate', kind: 'navigate', href: '/jobs', icon: '◔' },
 

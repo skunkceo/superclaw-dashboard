@@ -78,7 +78,7 @@ function WorkLog() {
   }, []);
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-white">Work Log</h3><Link href="/reports" className="text-xs text-zinc-500 hover:text-orange-400 transition-colors">View all →</Link></div>
+      <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-white">Work Log</h3><Link href="/activity" className="text-xs text-zinc-500 hover:text-orange-400 transition-colors">View all →</Link></div>
       {loading ? <div className="space-y-2">{[...Array(4)].map((_,i)=><div key={i} className="h-7 bg-zinc-800/60 rounded animate-pulse"/>)}</div>
         : entries.length===0 ? <div className="flex-1 flex items-center justify-center"><span className="text-xs text-zinc-600">No activity logged yet</span></div>
         : <div className="space-y-0 flex-1 min-h-0 overflow-y-auto">{entries.map(entry => {

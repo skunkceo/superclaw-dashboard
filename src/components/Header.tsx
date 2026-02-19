@@ -69,6 +69,7 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
     { href: '/initiatives', label: 'Initiatives' },
     { href: '/proactivity', label: 'Proactivity', badge: proactivityStats ? proactivityStats.pending + proactivityStats.unread : 0 },
     { href: '/reports', label: 'Reports' },
+    { href: '/activity', label: 'Activity' },
   ];
 
   const isActive = (href: string) => {
