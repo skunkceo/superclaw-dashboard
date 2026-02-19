@@ -569,22 +569,6 @@ export default function ProactivityPage() {
     }
   };
 
-  const handleCronSave = async (jobId: string, updates: Partial<CronJob>) => {
-    const res = await fetch('/api/cron', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId, ...updates }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setCronJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...(data.job || updates) } : j));
-      if (selectedCronJob?.id === jobId) {
-        setSelectedCronJob(prev => prev ? { ...prev, ...(data.job || updates) } : null);
-      }
-    } else {
-      throw new Error('Failed to save job');
-    }
-  };
 
   const filteredIntel = intelCategory === 'all'
     ? intel
@@ -708,9 +692,9 @@ export default function ProactivityPage() {
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
-                          onClick={() => setSelectedCronJob(job)}
+                          onClick={() => router.push(`/jobs/${job.id}`)}
                           className="p-1.5 text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors"
-                          title="View / edit"
+                          title="Edit job"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
