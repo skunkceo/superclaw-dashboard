@@ -125,6 +125,7 @@ interface IntelItem {
   relevance_score: number;
   created_at: number;
   read_at: number | null;
+  archived_at: number | null;
 }
 
 interface Suggestion {
@@ -155,6 +156,7 @@ interface OvernightState {
 interface IntelStats {
   total: number;
   unread: number;
+  archived: number;
   byCategory: Record<string, number>;
 }
 
@@ -217,7 +219,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   );
 }
 
-function IntelCard({ item, onRead, onDelete, onCreateTask }: { item: IntelItem; onRead: (id: string) => void; onDelete: (id: string) => void; onCreateTask: (id: string, title: string) => Promise<{ identifier: string; url: string } | null> }) {
+function IntelCard({ item, onRead, onArchive, onCreateTask }: { item: IntelItem; onRead: (id: string) => void; onArchive: (id: string) => void; onCreateTask: (id: string, title: string) => Promise<{ identifier: string; url: string } | null> }) {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [taskTitle, setTaskTitle] = useState(`Task: ${item.title.slice(0, 80)}`);
   const [creating, setCreating] = useState(false);
@@ -315,12 +317,12 @@ function IntelCard({ item, onRead, onDelete, onCreateTask }: { item: IntelItem; 
             </button>
           )}
           <button
-            onClick={() => onDelete(item.id)}
-            className="p-1.5 text-zinc-700 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors"
-            title="Delete"
+            onClick={() => onArchive(item.id)}
+            className="p-1.5 text-zinc-700 hover:text-zinc-400 hover:bg-zinc-800 rounded-lg transition-colors"
+            title="Archive"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
           </button>
         </div>
@@ -408,8 +410,9 @@ export default function ProactivityPage() {
   const router = useRouter();
 
   const [intel, setIntel] = useState<IntelItem[]>([]);
-  const [intelStats, setIntelStats] = useState<IntelStats>({ total: 0, unread: 0, byCategory: {} });
+  const [intelStats, setIntelStats] = useState<IntelStats>({ total: 0, unread: 0, archived: 0, byCategory: {} });
   const [intelCategory, setIntelCategory] = useState<string>('all');
+  const [showArchived, setShowArchived] = useState(false);
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionStats, setSuggestionStats] = useState<SuggestionStats>({ pending: 0, approved: 0, queued: 0, completed: 0, dismissed: 0 });
@@ -430,7 +433,7 @@ export default function ProactivityPage() {
   const fetchAll = useCallback(async () => {
     try {
       const [intelRes, sugRes, nightRes, historyRes, cronRes] = await Promise.all([
-        fetch('/api/intel?limit=100'),
+        fetch(`/api/intel?limit=100${showArchived ? '&archived=true' : ''}`),
         fetch('/api/suggestions?limit=200'),
         fetch('/api/overnight'),
         fetch('/api/overnight/history?limit=5'),
@@ -461,7 +464,7 @@ export default function ProactivityPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     fetchAll();
@@ -474,9 +477,16 @@ export default function ProactivityPage() {
     setIntel(prev => prev.map(i => i.id === id ? { ...i, read_at: Date.now() } : i));
   };
 
-  const handleIntelDelete = async (id: string) => {
-    await fetch(`/api/intel/${id}`, { method: 'DELETE' });
+  const handleIntelArchive = async (id: string) => {
+    await fetch(`/api/intel/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'archive' }) });
     setIntel(prev => prev.filter(i => i.id !== id));
+    setIntelStats(prev => ({ ...prev, total: Math.max(0, prev.total - 1), archived: prev.archived + 1 }));
+  };
+
+  const handleArchiveAll = async () => {
+    await fetch('/api/intel?action=archive_all', { method: 'PATCH' });
+    setIntel([]);
+    setIntelStats(prev => ({ ...prev, archived: prev.archived + prev.total, total: 0, unread: 0, byCategory: {} }));
   };
 
   const handleCreateTaskFromIntel = async (intelId: string, title: string): Promise<{ identifier: string; url: string } | null> => {
@@ -664,7 +674,7 @@ export default function ProactivityPage() {
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Intel items" value={intelStats.total} sub={`${intelStats.unread} unread`} />
+          <StatCard label="Intel items" value={intelStats.total} sub={`${intelStats.unread} unread · ${intelStats.archived} archived`} />
           <StatCard label="Suggestions pending" value={suggestionStats.pending} sub={`${suggestionStats.approved} approved`} />
           <StatCard label="Queued for tonight" value={suggestionStats.queued} />
           <StatCard label="Completed" value={suggestionStats.completed} />
@@ -789,16 +799,39 @@ export default function ProactivityPage() {
 
           {/* Intelligence Feed — sidebar */}
           <div className="lg:col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-white">Intelligence Feed</h2>
-              {intelStats.unread > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                  Mark all read
-                </button>
-              )}
+            <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+              <h2 className="text-base font-semibold text-white">
+                Intelligence Feed
+                {intelStats.archived > 0 && !showArchived && (
+                  <span className="ml-2 text-xs font-normal text-zinc-600">{intelStats.archived} archived</span>
+                )}
+              </h2>
+              <div className="flex items-center gap-2">
+                {intelStats.archived > 0 && (
+                  <button
+                    onClick={() => setShowArchived(v => !v)}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    {showArchived ? 'Show active' : `Archive (${intelStats.archived})`}
+                  </button>
+                )}
+                {!showArchived && intel.length > 0 && (
+                  <button
+                    onClick={handleArchiveAll}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    Archive all
+                  </button>
+                )}
+                {!showArchived && intelStats.unread > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Category filter */}
@@ -822,18 +855,24 @@ export default function ProactivityPage() {
             <div className="space-y-3 max-h-[700px] overflow-y-auto pr-1">
               {filteredIntel.length === 0 ? (
                 <div className="border border-zinc-800 rounded-xl p-6 text-center">
-                  <div className="text-zinc-600 text-sm mb-3">No intel items yet</div>
-                  <button
-                    onClick={handleIntelRefresh}
-                    disabled={refreshing}
-                    className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
-                  >
-                    Run a refresh to gather market signals
-                  </button>
+                  {showArchived ? (
+                    <div className="text-zinc-600 text-sm">No archived items yet</div>
+                  ) : (
+                    <>
+                      <div className="text-zinc-600 text-sm mb-3">No intel items yet</div>
+                      <button
+                        onClick={handleIntelRefresh}
+                        disabled={refreshing}
+                        className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
+                      >
+                        Run a refresh to gather market signals
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 filteredIntel.map(item => (
-                  <IntelCard key={item.id} item={item} onRead={handleIntelRead} onDelete={handleIntelDelete} onCreateTask={handleCreateTaskFromIntel} />
+                  <IntelCard key={item.id} item={item} onRead={handleIntelRead} onArchive={handleIntelArchive} onCreateTask={handleCreateTaskFromIntel} />
                 ))
               )}
             </div>

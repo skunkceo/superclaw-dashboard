@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { markIntelRead, getIntelItemById, createSuggestion, updateSuggestionLinear } from '@/lib/db';
+import { markIntelRead, archiveIntelItem, getIntelItemById, createSuggestion, updateSuggestionLinear } from '@/lib/db';
 import { createLinearIssue, getCategoryLabelId, mapPriorityToLinear } from '@/lib/linear';
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/lib/db';
@@ -18,6 +18,11 @@ export async function PATCH(
 
   if (action === 'read') {
     markIntelRead(id);
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === 'archive') {
+    archiveIntelItem(id);
     return NextResponse.json({ success: true });
   }
 

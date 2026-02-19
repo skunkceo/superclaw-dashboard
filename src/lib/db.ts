@@ -415,10 +415,12 @@ db.exec(`
     source TEXT NOT NULL DEFAULT 'brave',
     relevance_score INTEGER DEFAULT 50,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
-    read_at INTEGER
+    read_at INTEGER,
+    archived_at INTEGER
   );
   CREATE INDEX IF NOT EXISTS idx_intel_category ON intel_items(category);
   CREATE INDEX IF NOT EXISTS idx_intel_created ON intel_items(created_at);
+  CREATE INDEX IF NOT EXISTS idx_intel_archived ON intel_items(archived_at);
 `);
 
 // Suggestions table
@@ -519,12 +521,20 @@ export interface IntelItem {
   relevance_score: number;
   created_at: number;
   read_at: number | null;
+  archived_at?: number | null;
 }
 
-export function getAllIntelItems(filters?: { category?: string; unread?: boolean; limit?: number }): IntelItem[] {
+export function getAllIntelItems(filters?: { category?: string; unread?: boolean; limit?: number; archived?: boolean }): IntelItem[] {
   let query = 'SELECT * FROM intel_items';
   const conditions: string[] = [];
   const values: unknown[] = [];
+
+  // By default, exclude archived items unless explicitly requested
+  if (filters?.archived) {
+    conditions.push('archived_at IS NOT NULL');
+  } else {
+    conditions.push('archived_at IS NULL');
+  }
 
   if (filters?.category) {
     conditions.push('category = ?');
@@ -544,7 +554,7 @@ export function getAllIntelItems(filters?: { category?: string; unread?: boolean
   return db.prepare(query).all(...values) as IntelItem[];
 }
 
-export function createIntelItem(item: Omit<IntelItem, 'created_at' | 'read_at'>): void {
+export function createIntelItem(item: Omit<IntelItem, 'created_at' | 'read_at' | 'archived_at'>): void {
   db.prepare(`
     INSERT INTO intel_items (id, category, title, summary, url, source, relevance_score)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -556,16 +566,26 @@ export function markIntelRead(id: string): void {
 }
 
 export function markAllIntelRead(): void {
-  db.prepare('UPDATE intel_items SET read_at = ? WHERE read_at IS NULL').run(Date.now());
+  db.prepare('UPDATE intel_items SET read_at = ? WHERE read_at IS NULL AND archived_at IS NULL').run(Date.now());
 }
 
-export function getIntelStats(): { total: number; unread: number; byCategory: Record<string, number> } {
-  const total = (db.prepare('SELECT COUNT(*) as n FROM intel_items').get() as { n: number }).n;
-  const unread = (db.prepare('SELECT COUNT(*) as n FROM intel_items WHERE read_at IS NULL').get() as { n: number }).n;
-  const rows = db.prepare('SELECT category, COUNT(*) as n FROM intel_items GROUP BY category').all() as { category: string; n: number }[];
+export function getIntelStats(): { total: number; unread: number; archived: number; byCategory: Record<string, number> } {
+  const total = (db.prepare('SELECT COUNT(*) as n FROM intel_items WHERE archived_at IS NULL').get() as { n: number }).n;
+  const unread = (db.prepare('SELECT COUNT(*) as n FROM intel_items WHERE read_at IS NULL AND archived_at IS NULL').get() as { n: number }).n;
+  const archived = (db.prepare('SELECT COUNT(*) as n FROM intel_items WHERE archived_at IS NOT NULL').get() as { n: number }).n;
+  const rows = db.prepare('SELECT category, COUNT(*) as n FROM intel_items WHERE archived_at IS NULL GROUP BY category').all() as { category: string; n: number }[];
   const byCategory: Record<string, number> = {};
   for (const row of rows) byCategory[row.category] = row.n;
-  return { total, unread, byCategory };
+  return { total, unread, archived, byCategory };
+}
+
+export function archiveIntelItem(id: string): void {
+  db.prepare('UPDATE intel_items SET archived_at = ? WHERE id = ?').run(Date.now(), id);
+}
+
+export function archiveAllIntelItems(): number {
+  const result = db.prepare('UPDATE intel_items SET archived_at = ? WHERE archived_at IS NULL').run(Date.now());
+  return result.changes;
 }
 
 // ─── Suggestion types & functions ─────────────────────────────────────────────
