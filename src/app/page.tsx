@@ -163,12 +163,12 @@ function CompactTeam({ agentData }: { agentData: AgentData | null }) {
                 title={agent.name}
                 className="relative group"
               >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg bg-zinc-800 border-2 transition-all ${
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold bg-zinc-800 border-2 transition-all ${
                   agent.status === 'active'
-                    ? 'border-orange-500/60 hover:border-orange-500'
-                    : 'border-zinc-700 hover:border-zinc-600'
+                    ? 'border-orange-500/60 hover:border-orange-500 text-orange-400'
+                    : 'border-zinc-700 hover:border-zinc-600 text-zinc-400'
                 }`}>
-                  {agent.emoji || '🤖'}
+                  {(agent.name || agent.label).slice(0, 2).toUpperCase()}
                 </div>
                 {/* Status dot */}
                 <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 ${
@@ -417,11 +417,11 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* ── Proactivity (prominent, full-width) ───────────────────── */}
-        <ProactivityBanner />
-
-        {/* ── Token Usage ───────────────────────────────────────────── */}
-        <TokenUsage tokens={data.tokens} subscription={data.subscription} />
+        {/* ── Proactivity + Token Usage (50/50) ─────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <ProactivityBanner />
+          <TokenUsage tokens={data.tokens} subscription={data.subscription} />
+        </div>
 
         {/* ── Team + Work Log ───────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
