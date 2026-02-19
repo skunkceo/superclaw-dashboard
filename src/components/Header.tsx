@@ -200,6 +200,22 @@ export function Header({ healthStatus = 'healthy' }: HeaderProps) {
               Upgrade
             </Link>
 
+            {/* Command palette hint */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('superclaw:open-palette'))}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition-colors text-xs text-zinc-400 hover:text-zinc-200"
+              title="Open command palette"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <span>Search</span>
+              <span className="flex items-center gap-0.5 ml-1">
+                <kbd className="px-1 py-0.5 rounded bg-zinc-700 text-zinc-400 text-[10px] font-mono">⌘</kbd>
+                <kbd className="px-1 py-0.5 rounded bg-zinc-700 text-zinc-400 text-[10px] font-mono">K</kbd>
+              </span>
+            </button>
+
             {/* Chat button */}
             <Link
               href="/chat"

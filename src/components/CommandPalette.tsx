@@ -166,6 +166,13 @@ export function CommandPalette() {
     return () => window.removeEventListener('keydown', handler);
   }, [open, openPalette, closePalette]);
 
+  // Custom event trigger (e.g. header pill click)
+  useEffect(() => {
+    const handler = () => openPalette();
+    window.addEventListener('superclaw:open-palette', handler);
+    return () => window.removeEventListener('superclaw:open-palette', handler);
+  }, [openPalette]);
+
   // Focus input when opened
   useEffect(() => {
     if (open) {
