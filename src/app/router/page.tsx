@@ -78,10 +78,13 @@ export default function RouterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ version: '1.0', rules, fallback: { agent: 'main', notify: true } })
       });
-      if (!res.ok) throw new Error('Failed to save rules');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error: ${res.status}`);
+      }
     } catch (error) {
       console.error('Error saving rules:', error);
-      alert('Failed to save routing rules');
+      alert('Failed to save routing rules: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setSaving(false);
     }
@@ -126,18 +129,21 @@ export default function RouterPage() {
     const newRules = rules.map(r => 
       r.id === id ? { ...r, enabled: !r.enabled } : r
     );
-    setRules(newRules);
     
     // Auto-save after toggle
     setSaving(true);
     try {
-      await fetch('/api/router/rules', {
+      const res = await fetch('/api/router/rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ version: '1.0', rules: newRules, fallback: { agent: 'main', notify: true } })
       });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      // Only update state after confirmed save
+      setRules(newRules);
     } catch (error) {
       console.error('Error saving rules:', error);
+      alert('Failed to toggle rule — check server permissions');
     } finally {
       setSaving(false);
     }
@@ -434,12 +440,15 @@ export default function RouterPage() {
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-zinc-400">Messages Routed</span>
-                  <span className="font-medium">247</span>
+                  <span className="font-medium text-zinc-600">—</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-zinc-400">Hit Rate</span>
-                  <span className="font-medium">68%</span>
+                  <span className="font-medium text-zinc-600">—</span>
                 </div>
+                <p className="text-xs text-zinc-600 pt-1 border-t border-zinc-800">
+                  Routing telemetry coming soon
+                </p>
               </div>
             </div>
           </div>
@@ -675,7 +684,7 @@ export default function RouterPage() {
                     }
                     
                     try {
-                      await fetch('/api/router/rules', {
+                      const res = await fetch('/api/router/rules', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
@@ -684,14 +693,20 @@ export default function RouterPage() {
                           fallback: { agent: 'main', notify: true } 
                         })
                       });
+
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err.error || `Server error: ${res.status}`);
+                      }
                       
+                      // Only update state after confirmed save
                       setRules(newRules);
                       setEditingRule(null);
                       setShowAddRule(false);
                       setFormData(null);
                     } catch (error) {
                       console.error('Failed to save:', error);
-                      alert('Failed to save rule');
+                      alert('Failed to save rule: ' + (error instanceof Error ? error.message : 'Unknown error'));
                     } finally {
                       setSaving(false);
                     }
