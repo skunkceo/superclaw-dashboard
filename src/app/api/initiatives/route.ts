@@ -48,7 +48,7 @@ export async function GET() {
         'Authorization': apiKey,
       },
       body: JSON.stringify({ query: QUERY }),
-      next: { revalidate: 60 }, // cache for 60s
+      cache: 'no-store',
     });
 
     if (!res.ok) {
