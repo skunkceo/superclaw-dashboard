@@ -39,6 +39,7 @@ function AgentAvatarRow({ agentData }: { agentData: AgentData | null }) {
   if (agents.length === 0) return null;
   return (
     <div className="flex items-center gap-2 justify-end">
+      <span className="text-[11px] text-zinc-500 font-medium">Agents:</span>
       <div className="flex items-center gap-1.5">
         {agents.map(agent => (
           <Link key={agent.label} href="/agents" title={agent.name} className="relative group">
