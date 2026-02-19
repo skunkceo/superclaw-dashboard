@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { tmpdir } from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { getCurrentUser } from '@/lib/auth';
 import Database from 'better-sqlite3';
+
+const execAsync = promisify(exec);
 
 // Read OpenClaw configuration
 function getGatewayConfig() {
@@ -63,6 +68,128 @@ function getChatDb() {
   return db;
 }
 
+// Build system prompt with page context and live data
+function buildSystemPrompt(pageContext: { page?: string; data?: unknown } | null, cronJobs: unknown[]): string {
+  return `You are the SuperClaw AI assistant — an intelligent control layer for the SuperClaw dashboard built on top of OpenClaw.
+
+Current page: ${pageContext?.page || 'dashboard'}
+Page data: ${JSON.stringify(pageContext?.data || null)}
+
+Live state:
+Cron jobs: ${JSON.stringify(cronJobs, null, 2)}
+
+You can take actions by including a single action block in your response (use backtick action blocks):
+
+Available actions:
+- cron_enable: { "type": "cron_enable", "jobId": "string" }
+- cron_disable: { "type": "cron_disable", "jobId": "string" }
+- cron_update: { "type": "cron_update", "jobId": "string", "patch": { "name"?: "string", "enabled"?: boolean } }
+- linear_create_project: { "type": "linear_create_project", "name": "string", "description"?: "string", "initiativeId"?: "string" }
+
+Rules:
+- Include at most ONE action block per response
+- Always confirm what you did after taking an action
+- Be concise and direct
+- Answer questions about the current state using the live data provided`;
+}
+
+// Parse action blocks from response text
+function parseActionBlock(text: string): any | null {
+  const actionMatch = text.match(/```action\s*\n([\s\S]*?)\n```/);
+  if (!actionMatch) return null;
+  try {
+    return JSON.parse(actionMatch[1]);
+  } catch {
+    return null;
+  }
+}
+
+// Execute an action
+async function executeAction(action: any, gatewayConfig: { port: number; token: string } | null): Promise<string> {
+  try {
+    switch (action.type) {
+      case 'cron_enable':
+      case 'cron_disable': {
+        if (!gatewayConfig) throw new Error('Gateway config not found');
+        const enabled = action.type === 'cron_enable';
+        const response = await fetch(`http://localhost:${gatewayConfig.port}/api/cron`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${gatewayConfig.token}`,
+          },
+          body: JSON.stringify({ jobId: action.jobId, enabled }),
+        });
+        if (!response.ok) throw new Error(`Failed to ${enabled ? 'enable' : 'disable'} job`);
+        return `${enabled ? 'Enabled' : 'Disabled'} job ${action.jobId}`;
+      }
+
+      case 'cron_update': {
+        if (!gatewayConfig) throw new Error('Gateway config not found');
+        const response = await fetch(`http://localhost:${gatewayConfig.port}/api/cron`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${gatewayConfig.token}`,
+          },
+          body: JSON.stringify({ jobId: action.jobId, ...action.patch }),
+        });
+        if (!response.ok) throw new Error('Failed to update job');
+        return `Updated job ${action.jobId}`;
+      }
+
+      case 'linear_create_project': {
+        const linearApiKey = process.env.LINEAR_API_KEY;
+        if (!linearApiKey) throw new Error('LINEAR_API_KEY not configured');
+
+        const mutation = `
+          mutation ProjectCreate($name: String!, $description: String, $initiativeId: String) {
+            projectCreate(input: {
+              name: $name
+              description: $description
+              initiativeId: $initiativeId
+            }) {
+              success
+              project {
+                id
+                name
+                url
+              }
+            }
+          }
+        `;
+
+        const response = await fetch('https://api.linear.app/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': linearApiKey,
+          },
+          body: JSON.stringify({
+            query: mutation,
+            variables: {
+              name: action.name,
+              description: action.description || null,
+              initiativeId: action.initiativeId || null,
+            },
+          }),
+        });
+
+        const result = await response.json();
+        if (result.errors) throw new Error(result.errors[0].message);
+        if (!result.data?.projectCreate?.success) throw new Error('Failed to create project');
+
+        return `Created Linear project: ${result.data.projectCreate.project.name}`;
+      }
+
+      default:
+        return `Unknown action type: ${action.type}`;
+    }
+  } catch (error) {
+    return `Action failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  }
+}
+
 // POST - Send a message
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -71,7 +198,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { message, sessionId } = await request.json();
+    const { message, sessionId, pageContext } = await request.json();
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -101,70 +228,77 @@ export async function POST(request: NextRequest) {
     
     db.close();
 
-    // Send message to OpenClaw via queue bridge
-    const queueDir = '/root/clawd/queue/superclaw-messages';
-    const messageId = `msg-${now}-${Math.random().toString(36).substr(2, 9)}`;
-    const messagePath = join(queueDir, `${messageId}.json`);
-    const responsePath = join(queueDir, `${messageId}-response.json`);
-
-    const queueMessage = {
-      id: messageId,
-      message: message,
-      sessionId: actualSessionId,
-      from: user.email,
-      timestamp: now,
-      status: 'pending',
-      responseFile: responsePath,
-    };
-
-    try {
-      writeFileSync(messagePath, JSON.stringify(queueMessage, null, 2));
-
-      // Wait for response (up to 60 seconds - Claude needs time to think)
-      const maxWait = 60000;
-      const startTime = Date.now();
-      let response = null;
-
-      while (Date.now() - startTime < maxWait) {
-        if (existsSync(responsePath)) {
-          response = JSON.parse(readFileSync(responsePath, 'utf8'));
-          break;
+    // Get gateway config and fetch live cron jobs
+    const gatewayConfig = getGatewayConfig();
+    let cronJobs: any[] = [];
+    
+    if (gatewayConfig) {
+      try {
+        const cronResponse = await fetch(`http://localhost:${gatewayConfig.port}/api/cron`, {
+          headers: {
+            'Authorization': `Bearer ${gatewayConfig.token}`,
+          },
+        });
+        if (cronResponse.ok) {
+          const cronData = await cronResponse.json();
+          cronJobs = cronData.jobs || [];
         }
-        // Wait 100ms before checking again (faster polling)
-        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error('Failed to fetch cron jobs:', error);
       }
-
-      if (!response) {
-        return NextResponse.json({
-          error: 'Request timed out',
-          message: 'The assistant is taking longer than expected to respond.',
-          sessionId: actualSessionId,
-        }, { status: 504 });
-      }
-
-      // Save assistant response to database
-      const db2 = getChatDb();
-      db2.prepare(`
-        INSERT INTO chat_messages (session_id, role, content, timestamp)
-        VALUES (?, ?, ?, ?)
-      `).run(actualSessionId, 'assistant', response.reply, response.timestamp || Date.now());
-      db2.close();
-
-      return NextResponse.json({
-        message: response.message || response.reply,
-        reply: response.message || response.reply,
-        sessionId: actualSessionId,
-        messageId: response.messageId,
-      });
-
-    } catch (error) {
-      console.error('Queue bridge error:', error);
-      return NextResponse.json({
-        error: 'Failed to process message',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        sessionId: actualSessionId,
-      }, { status: 500 });
     }
+
+    // Build prompt and run claude
+    const promptId = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const promptFile = join(tmpdir(), `sc-chat-${promptId}.txt`);
+    const fullPrompt = buildSystemPrompt(pageContext, cronJobs) + '\n\nUser message: ' + message;
+
+    writeFileSync(promptFile, fullPrompt);
+
+    let responseText = '';
+    try {
+      const { stdout } = await execAsync(
+        `claude --print < "${promptFile}"`,
+        { 
+          timeout: 90000, 
+          maxBuffer: 10 * 1024 * 1024, 
+          shell: '/bin/bash' 
+        }
+      );
+      responseText = stdout.trim();
+    } catch (error) {
+      console.error('Claude execution error:', error);
+      responseText = 'I encountered an error processing your request. Please try again.';
+    } finally {
+      try {
+        unlinkSync(promptFile);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
+    // Parse and execute actions
+    const actionsTaken: string[] = [];
+    const action = parseActionBlock(responseText);
+    
+    if (action) {
+      const actionResult = await executeAction(action, gatewayConfig);
+      actionsTaken.push(actionResult);
+    }
+
+    // Save assistant response
+    const db2 = getChatDb();
+    db2.prepare(`
+      INSERT INTO chat_messages (session_id, role, content, timestamp)
+      VALUES (?, ?, ?, ?)
+    `).run(actualSessionId, 'assistant', responseText, Date.now());
+    db2.close();
+
+    return NextResponse.json({
+      reply: responseText,
+      sessionId: actualSessionId,
+      actions_taken: actionsTaken,
+    });
 
   } catch (error) {
     console.error('Chat API error:', error);
