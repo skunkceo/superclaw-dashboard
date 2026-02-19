@@ -26,6 +26,10 @@ interface AgentData {
   sessions: AgentSession[];
 }
 
+interface ActiveAgentsProps {
+  initialData?: AgentData | null;
+}
+
 interface DisplayAgent {
   label: string;
   name: string;
@@ -44,35 +48,48 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-export function ActiveAgents() {
-  const [agents, setAgents] = useState<DisplayAgent[]>([]);
-  const [loading, setLoading] = useState(true);
+function buildDisplayAgents(data: AgentData): DisplayAgent[] {
+  return data.workspaces.map(workspace => {
+    const session = data.sessions.find(s => s.label === workspace.label);
+    return {
+      label: workspace.label,
+      name: workspace.name,
+      emoji: workspace.emoji,
+      status: session?.status || 'idle',
+      lastActive: session?.lastActive || 'never',
+      messageCount: session?.messageCount || 0,
+      memorySize: formatFileSize(workspace.memorySize),
+      model: session?.model || 'none'
+    };
+  });
+}
+
+export function ActiveAgents({ initialData }: ActiveAgentsProps) {
+  // If initial data provided by parent (parallel fetch), start with it — no skeleton flash
+  const [agents, setAgents] = useState<DisplayAgent[]>(
+    initialData ? buildDisplayAgents(initialData) : []
+  );
+  const [loading, setLoading] = useState(!initialData);
+
+  // Sync when parent refreshes initialData
+  useEffect(() => {
+    if (initialData) {
+      setAgents(buildDisplayAgents(initialData));
+      setLoading(false);
+    }
+  }, [initialData]);
 
   useEffect(() => {
+    // Only do own polling if parent didn't provide initial data
+    if (initialData) return;
+
     const fetchAgents = async () => {
       try {
         const res = await fetch('/api/agents/list');
         if (!res.ok) throw new Error('Failed to fetch agents');
         
         const data: AgentData = await res.json();
-        
-        // Combine workspace + session data
-        const combined: DisplayAgent[] = data.workspaces.map(workspace => {
-          const session = data.sessions.find(s => s.label === workspace.label);
-          
-          return {
-            label: workspace.label,
-            name: workspace.name,
-            emoji: workspace.emoji,
-            status: session?.status || 'idle',
-            lastActive: session?.lastActive || 'never',
-            messageCount: session?.messageCount || 0,
-            memorySize: formatFileSize(workspace.memorySize),
-            model: session?.model || 'none'
-          };
-        });
-        
-        setAgents(combined);
+        setAgents(buildDisplayAgents(data));
       } catch (error) {
         console.error('Error fetching agents:', error);
       } finally {
@@ -81,9 +98,9 @@ export function ActiveAgents() {
     };
 
     fetchAgents();
-    const interval = setInterval(fetchAgents, 10000); // Refresh every 10s
+    const interval = setInterval(fetchAgents, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [initialData]);
 
   if (loading) {
     return (

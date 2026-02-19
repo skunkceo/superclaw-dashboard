@@ -54,12 +54,30 @@ export default function MemoryPage() {
   const [loadingContent, setLoadingContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agentId, setAgentId] = useState<string | null>(null);
+  const [embeddingsConfigured, setEmbeddingsConfigured] = useState<boolean | null>(null);
 
   // Get agent ID from URL params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const agent = params.get('agent');
     setAgentId(agent);
+  }, []);
+
+  // Check embeddings configuration status
+  useEffect(() => {
+    const fetchEmbeddingsStatus = async () => {
+      try {
+        const res = await fetch('/api/memory/embeddings');
+        if (res.ok) {
+          const data = await res.json();
+          setEmbeddingsConfigured(data.configured);
+        }
+      } catch {
+        // Silently fail - embeddings status is optional
+      }
+    };
+
+    fetchEmbeddingsStatus();
   }, []);
 
   // Load memory file list
@@ -155,7 +173,43 @@ export default function MemoryPage() {
         <div className="flex" style={{ height: 'calc(100vh - 81px)' }}>
           {/* Sidebar - File List */}
           <div className="w-80 bg-zinc-900/30 border-r border-zinc-800 p-4 overflow-y-auto">
-            <div className="mb-4">
+
+            {/* Memory Embeddings Card — pinned at top */}
+            <div className="mb-4 bg-zinc-800/50 rounded-lg p-3 border border-zinc-700">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold text-sm text-white">Memory Embeddings</h3>
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${embeddingsConfigured ? 'bg-green-400' : 'bg-orange-400'}`} />
+                  <span className={`text-xs ${embeddingsConfigured ? 'text-green-400' : 'text-orange-400'}`}>
+                    {embeddingsConfigured ? 'Active' : 'Not set up'}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500 leading-relaxed mb-2.5">
+                Vector search makes recall significantly more accurate.
+              </p>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/memory/embeddings"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded transition-colors"
+                >
+                  Configure
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+                <a
+                  href="https://skunkglobal.com/superclaw/read/1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-zinc-500 hover:text-orange-400 transition-colors"
+                >
+                  Learn more
+                </a>
+              </div>
+            </div>
+
+            <div className="mb-3">
               <h2 className="font-semibold text-orange-400 mb-1">Memory Files</h2>
               <p className="text-xs text-zinc-500">{memoryData?.files.length || 0} files</p>
             </div>
@@ -187,25 +241,6 @@ export default function MemoryPage() {
                   </div>
                 </button>
               ))}
-            </div>
-
-            {/* Contextual callout — memory embeddings */}
-            <div className="mt-6 pt-4 border-t border-zinc-800">
-              <p className="text-xs font-medium text-zinc-400 mb-2">Want smarter recall?</p>
-              <p className="text-xs text-zinc-500 leading-relaxed mb-3">
-                Memory files store context across sessions. Memory embeddings make retrieval significantly more accurate — your agent finds the right information instead of scanning everything.
-              </p>
-              <a
-                href="https://skunkglobal.com/superclaw/read/1"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 transition-colors font-medium"
-              >
-                Chapter 1: Memory embeddings
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
             </div>
           </div>
 

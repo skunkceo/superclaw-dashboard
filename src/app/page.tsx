@@ -120,19 +120,48 @@ interface DashboardData {
   }>;
 }
 
+interface AgentData {
+  workspaces: Array<{
+    label: string;
+    name: string;
+    emoji: string;
+    workspacePath: string;
+    hasMemory: boolean;
+    memorySize: number;
+  }>;
+  sessions: Array<{
+    label: string;
+    sessionKey: string;
+    status: 'active' | 'idle' | 'waiting';
+    lastActive: string;
+    messageCount: number;
+    model: string;
+  }>;
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [agentData, setAgentData] = useState<AgentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const statusRes = await fetch('/api/status');
+        // Fetch status + agents in parallel — eliminates layout shift from sequential loads
+        const [statusRes, agentsRes] = await Promise.all([
+          fetch('/api/status'),
+          fetch('/api/agents/list'),
+        ]);
         if (!statusRes.ok) throw new Error('Failed to fetch status');
         
         const statusData = await statusRes.json();
         setData(statusData);
+
+        if (agentsRes.ok) {
+          const agents = await agentsRes.json();
+          setAgentData(agents);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -141,7 +170,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 5000); // Poll every 5 seconds for real-time updates
+    const interval = setInterval(fetchData, 10000); // Poll every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -179,7 +208,7 @@ export default function Dashboard() {
 
         {/* Agent Sessions */}
         <div className="mb-6 sm:mb-8">
-          <ActiveAgents />
+          <ActiveAgents initialData={agentData} />
         </div>
 
         {/* Middle Row */}

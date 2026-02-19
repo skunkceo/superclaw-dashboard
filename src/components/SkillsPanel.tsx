@@ -3,15 +3,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-// Skills that require manual setup (can't be toggled freely)
+// Skills that require manual setup in the OpenClaw gateway config (can't be toggled freely)
 const SETUP_REQUIRED: Record<string, { instructions: string; settingsPath?: string }> = {
   'email': {
-    instructions: 'To enable Email, configure your IMAP/SMTP credentials in Settings. You\'ll need your email host, port, username, and app password.',
-    settingsPath: '/settings',
+    instructions: 'Email requires IMAP/SMTP credentials in your OpenClaw config. Run: openclaw gateway config.get — then add an "email" channel block with your host, port, username, and app password. Restart OpenClaw when done.',
   },
   'calendar': {
-    instructions: 'To enable Calendar, connect your Google account in Settings. You\'ll need to authorise OpenClaw to access Google Calendar.',
-    settingsPath: '/settings',
+    instructions: 'Google Calendar requires OAuth setup in your OpenClaw config. Add a "calendar" channel block with your Google OAuth credentials, or use a service account. Run: openclaw gateway config.get to see current config.',
   },
 };
 
