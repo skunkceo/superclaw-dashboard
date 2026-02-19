@@ -36,9 +36,9 @@ function renderMarkdown(md: string): string {
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code class="bg-zinc-800 text-orange-300 px-1.5 py-0.5 rounded text-xs">$1</code>');
   // Headings
-  html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold text-white mt-6 mb-2">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-white mt-8 mb-3">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold text-white mt-8 mb-4">$1</h1>');
+  html = html.replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-white mt-6 mb-2">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-white mt-8 mb-3">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-white mt-8 mb-4">$1</h1>');
   // Bold & italic
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
   html = html.replace(/\*([^*]+)\*/g, '<em class="text-zinc-300">$1</em>');
@@ -47,13 +47,13 @@ function renderMarkdown(md: string): string {
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr class="border-zinc-800 my-6">');
   // Unordered lists
-  html = html.replace(/^[*-] (.+)$/gm, '<li class="text-zinc-300 text-sm">$1</li>');
+  html = html.replace(/^[*-] (.+)$/gm, '<li class="text-zinc-300 text-base">$1</li>');
   // Ordered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li class="text-zinc-300 text-sm">$1</li>');
+  html = html.replace(/^\d+\. (.+)$/gm, '<li class="text-zinc-300 text-base">$1</li>');
   // Wrap consecutive li items
-  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, (match) => `<ul class="list-disc list-inside space-y-1 my-3 pl-2">${match}</ul>`);
+  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, (match) => `<ul class="list-disc list-inside space-y-1.5 my-3 pl-2">${match}</ul>`);
   // Paragraphs (double newlines)
-  html = html.replace(/\n\n([^<])/g, '\n\n<p class="text-zinc-400 text-sm leading-relaxed mb-4">$1');
+  html = html.replace(/\n\n([^<])/g, '\n\n<p class="text-zinc-400 text-base leading-relaxed mb-4">$1');
   html = html.replace(/([^>])\n\n/g, '$1</p>\n\n');
   // Single newlines in paragraphs
   html = html.replace(/([^>\n])\n([^<\n])/g, '$1<br>$2');
