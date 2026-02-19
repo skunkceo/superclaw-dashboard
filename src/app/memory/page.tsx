@@ -173,7 +173,43 @@ export default function MemoryPage() {
         <div className="flex" style={{ height: 'calc(100vh - 81px)' }}>
           {/* Sidebar - File List */}
           <div className="w-80 bg-zinc-900/30 border-r border-zinc-800 p-4 overflow-y-auto">
-            <div className="mb-4">
+
+            {/* Memory Embeddings Card — pinned at top */}
+            <div className="mb-4 bg-zinc-800/50 rounded-lg p-3 border border-zinc-700">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold text-sm text-white">Memory Embeddings</h3>
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${embeddingsConfigured ? 'bg-green-400' : 'bg-orange-400'}`} />
+                  <span className={`text-xs ${embeddingsConfigured ? 'text-green-400' : 'text-orange-400'}`}>
+                    {embeddingsConfigured ? 'Active' : 'Not set up'}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500 leading-relaxed mb-2.5">
+                Vector search makes recall significantly more accurate.
+              </p>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/memory/embeddings"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded transition-colors"
+                >
+                  Configure
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+                <a
+                  href="https://skunkglobal.com/superclaw/read/1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-zinc-500 hover:text-orange-400 transition-colors"
+                >
+                  Learn more
+                </a>
+              </div>
+            </div>
+
+            <div className="mb-3">
               <h2 className="font-semibold text-orange-400 mb-1">Memory Files</h2>
               <p className="text-xs text-zinc-500">{memoryData?.files.length || 0} files</p>
             </div>
@@ -205,48 +241,6 @@ export default function MemoryPage() {
                   </div>
                 </button>
               ))}
-            </div>
-
-            {/* Memory Embeddings Card */}
-            <div className="mt-6 pt-4 border-t border-zinc-800">
-              <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                <div className="flex items-start gap-2 mb-2">
-                  <h3 className="font-semibold text-sm text-white">Memory Embeddings</h3>
-                  {embeddingsConfigured !== null && (
-                    <div className="flex items-center gap-1.5">
-                      <div className={`w-2 h-2 rounded-full ${embeddingsConfigured ? 'bg-green-400' : 'bg-orange-400'}`} />
-                      <span className={`text-xs ${embeddingsConfigured ? 'text-green-400' : 'text-orange-400'}`}>
-                        {embeddingsConfigured ? 'Configured' : 'Not configured'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-zinc-400 leading-relaxed mb-3">
-                  Smarter recall with vector search. Configure an embedding provider to make memory retrieval significantly more accurate.
-                </p>
-                <div className="flex items-center gap-2">
-                  <Link
-                    href="/memory/embeddings"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded transition-colors"
-                  >
-                    Configure
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
-                  <a
-                    href="https://skunkglobal.com/superclaw/read/1"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-orange-400 transition-colors"
-                  >
-                    Learn more
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                </div>
-              </div>
             </div>
           </div>
 
