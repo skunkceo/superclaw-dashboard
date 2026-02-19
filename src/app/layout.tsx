@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthWrapper } from "@/components/AuthWrapper";
 import { ConditionalHeader } from "@/components/ConditionalHeader";
+import { CommandPalette } from "@/components/CommandPalette";
 
 export const metadata: Metadata = {
   title: "SuperClaw Dashboard",
@@ -26,6 +27,7 @@ export default function RootLayout({
         <AuthWrapper>
           <ConditionalHeader />
           {children}
+          <CommandPalette />
         </AuthWrapper>
       </body>
     </html>
