@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
 import { LobsterLogo } from '@/components/LobsterLogo';
 
 interface Message {
@@ -377,7 +378,45 @@ export default function ChatPage() {
                           : 'bg-zinc-800 text-zinc-100 mr-4 sm:mr-8 md:mr-12'
                       }`}
                     >
-                      <div className="whitespace-pre-wrap break-words text-sm sm:text-base">{message.content}</div>
+                      {message.role === 'user' ? (
+                        <div className="whitespace-pre-wrap break-words text-sm sm:text-base">{message.content}</div>
+                      ) : (
+                        <div className="text-sm sm:text-base prose-chat">
+                          <ReactMarkdown
+                            components={{
+                              p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                              h1: ({ children }) => <h1 className="text-lg font-bold text-white mt-3 mb-1 first:mt-0">{children}</h1>,
+                              h2: ({ children }) => <h2 className="text-base font-bold text-white mt-3 mb-1 first:mt-0">{children}</h2>,
+                              h3: ({ children }) => <h3 className="text-sm font-semibold text-white mt-2 mb-1 first:mt-0">{children}</h3>,
+                              ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 mb-2 ml-1">{children}</ul>,
+                              ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mb-2 ml-1">{children}</ol>,
+                              li: ({ children }) => <li className="text-zinc-200 leading-snug">{children}</li>,
+                              code: ({ children, className }) => {
+                                const isBlock = className?.includes('language-');
+                                return isBlock ? (
+                                  <code className="block bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 my-2 text-xs font-mono text-zinc-200 overflow-x-auto whitespace-pre">{children}</code>
+                                ) : (
+                                  <code className="bg-zinc-950 border border-zinc-700 rounded px-1.5 py-0.5 text-xs font-mono text-orange-300">{children}</code>
+                                );
+                              },
+                              pre: ({ children }) => <div className="my-2">{children}</div>,
+                              strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                              em: ({ children }) => <em className="italic text-zinc-300">{children}</em>,
+                              a: ({ href, children }) => (
+                                <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:text-orange-300 underline underline-offset-2 transition-colors">
+                                  {children}
+                                </a>
+                              ),
+                              blockquote: ({ children }) => (
+                                <blockquote className="border-l-2 border-zinc-600 pl-3 my-2 text-zinc-400 italic">{children}</blockquote>
+                              ),
+                              hr: () => <hr className="border-zinc-700 my-3" />,
+                            }}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
                       <div className={`text-[10px] sm:text-xs mt-1.5 sm:mt-2 ${
                         message.role === 'user' ? 'text-orange-100' : 'text-zinc-400'
                       }`}>
