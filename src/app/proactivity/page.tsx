@@ -892,7 +892,7 @@ export default function ProactivityPage() {
       {/* Cron Job Modal */}
       {selectedCronJob && (
         <CronJobModal
-          job={selectedCronJob}
+          job={{ ...selectedCronJob, nextRun: selectedCronJob.nextRun ?? undefined }}
           onClose={() => setSelectedCronJob(null)}
           onSave={handleCronSave}
         />
