@@ -39,6 +39,76 @@ if (!BRAVE_KEY) {
   process.exit(1);
 }
 
+// ─── Linear integration ─────────────────────────────────────────────────────────
+
+const LINEAR_API_URL = 'https://api.linear.app/graphql';
+let LINEAR_CONFIG = null;
+
+function loadLinearConfig() {
+  const credPath = '/root/.openclaw/workspace/credentials/linear-api.json';
+  if (!fs.existsSync(credPath)) return null;
+  try {
+    const cred = JSON.parse(fs.readFileSync(credPath, 'utf8'));
+    return {
+      apiKey: cred.apiKey || cred.api_key,
+      teamId: cred.teamId || cred.team_id,
+      projectId: cred.projectId || cred.project_id,
+    };
+  } catch (err) {
+    console.error('Failed to load Linear credentials:', err.message);
+    return null;
+  }
+}
+
+LINEAR_CONFIG = loadLinearConfig();
+
+async function createLinearIssue(title, description, priority) {
+  if (!LINEAR_CONFIG) return null;
+
+  const query = `
+    mutation CreateIssue($input: IssueCreateInput!) {
+      issueCreate(input: $input) {
+        success
+        issue { id identifier url }
+      }
+    }
+  `;
+
+  const input = {
+    teamId: LINEAR_CONFIG.teamId,
+    title,
+    description: description || '',
+    priority: priority || 3,
+  };
+  if (LINEAR_CONFIG.projectId) input.projectId = LINEAR_CONFIG.projectId;
+
+  try {
+    const res = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': LINEAR_CONFIG.apiKey,
+      },
+      body: JSON.stringify({ query, variables: { input } }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.data?.issueCreate?.success) {
+      return data.data.issueCreate.issue;
+    }
+  } catch (err) {
+    console.error('Linear API error:', err.message);
+  }
+  return null;
+}
+
+function mapPriorityToLinear(sugPriority) {
+  if (sugPriority === 1) return 1;
+  if (sugPriority === 2) return 2;
+  if (sugPriority === 3) return 3;
+  return 4;
+}
+
 // ─── Memory context reader ────────────────────────────────────────────────────
 
 function readBusinessContext() {
@@ -200,22 +270,38 @@ const STANDING_SUGGESTIONS = [
   { title: 'Audit SkunkForms free plugin features vs WPForms free tier', why: 'Knowing the gap informs content and roadmap decisions.', effort: 'medium', impact: 'medium', impact_score: 60, category: 'product', priority: 3 },
 ];
 
-function seedStandingSuggestions() {
+async function seedStandingSuggestions() {
   let added = 0;
+  let linearCreated = 0;
   for (const s of STANDING_SUGGESTIONS) {
     const existing = db.prepare("SELECT id FROM suggestions WHERE title = ? AND status NOT IN ('dismissed','completed')").get(s.title);
     if (existing) continue;
+
+    const suggestionId = randomUUID();
     db.prepare(`INSERT INTO suggestions (id, title, why, effort, impact, impact_score, category, source_intel_ids, status, priority, notes, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, '[]', 'pending', ?, NULL, ?)`).run(
-      randomUUID(), s.title, s.why, s.effort, s.impact, s.impact_score, s.category, s.priority, Date.now()
+      suggestionId, s.title, s.why, s.effort, s.impact, s.impact_score, s.category, s.priority, Date.now()
     );
     added++;
+
+    // Create Linear issue
+    if (LINEAR_CONFIG) {
+      const desc = `**Why:** ${s.why}\n\n**Effort:** ${s.effort} | **Impact:** ${s.impact}\n\n---\n*Auto-created from Superclaw Proactivity*`;
+      const linearIssue = await createLinearIssue(s.title, desc, mapPriorityToLinear(s.priority));
+      if (linearIssue) {
+        db.prepare('UPDATE suggestions SET linear_issue_id = ?, linear_identifier = ?, linear_url = ? WHERE id = ?')
+          .run(linearIssue.id, linearIssue.identifier, linearIssue.url, suggestionId);
+        linearCreated++;
+      }
+      await sleep(200); // Rate limit
+    }
   }
-  return added;
+  return { added, linearCreated };
 }
 
-function generateFromIntel(newItems) {
+async function generateFromIntel(newItems) {
   let added = 0;
+  let linearCreated = 0;
   const existing = db.prepare("SELECT title, status FROM suggestions").all();
   const existingTitles = new Set(existing.filter(s => !['dismissed','completed'].includes(s.status)).map(s => s.title.toLowerCase().slice(0, 60)));
 
@@ -240,14 +326,27 @@ function generateFromIntel(newItems) {
 
     if (existingTitles.has(title.toLowerCase().slice(0, 60))) continue;
 
+    const suggestionId = randomUUID();
     db.prepare(`INSERT INTO suggestions (id, title, why, effort, impact, impact_score, category, source_intel_ids, status, priority, notes, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?)`).run(
-      randomUUID(), title, why, effort, impact, impact_score, category, JSON.stringify([item.id]), priority, Date.now()
+      suggestionId, title, why, effort, impact, impact_score, category, JSON.stringify([item.id]), priority, Date.now()
     );
     existingTitles.add(title.toLowerCase().slice(0, 60));
     added++;
+
+    // Create Linear issue
+    if (LINEAR_CONFIG) {
+      const desc = `**Why:** ${why}\n\n**Effort:** ${effort} | **Impact:** ${impact}\n\n---\n*Auto-created from Superclaw Proactivity*`;
+      const linearIssue = await createLinearIssue(title, desc, mapPriorityToLinear(priority));
+      if (linearIssue) {
+        db.prepare('UPDATE suggestions SET linear_issue_id = ?, linear_identifier = ?, linear_url = ? WHERE id = ?')
+          .run(linearIssue.id, linearIssue.identifier, linearIssue.url, suggestionId);
+        linearCreated++;
+      }
+      await sleep(200); // Rate limit
+    }
   }
-  return added;
+  return { added, linearCreated };
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -282,8 +381,8 @@ async function main() {
     }
   }
 
-  const standingAdded = seedStandingSuggestions();
-  const intelSugAdded = generateFromIntel(newItems);
+  const standingResult = await seedStandingSuggestions();
+  const intelResult = await generateFromIntel(newItems);
 
   // Update last refresh timestamp
   db.prepare("INSERT OR REPLACE INTO proactivity_settings (key, value, updated_at) VALUES ('last_intel_refresh', ?, ?)")
@@ -295,16 +394,19 @@ async function main() {
     queriesRun,
     newIntelItems: newItems.length,
     skipped,
-    suggestionsFromIntel: intelSugAdded,
-    standingSuggestions: standingAdded,
+    suggestionsFromIntel: intelResult.added,
+    standingSuggestions: standingResult.added,
+    linearIssuesCreated: standingResult.linearCreated + intelResult.linearCreated,
     elapsedSeconds: elapsed,
   };
 
   // Log to activity feed
   try {
     const { randomUUID: uuid } = require('crypto');
-    const summary = `Intel refresh: ${newItems.length} new signals, ${intelSugAdded + standingAdded} suggestions (${queriesRun} queries, ${elapsed}s)`;
-    const details = `Queries: ${queriesRun} | New intel: ${newItems.length} | Skipped dupes: ${skipped} | Suggestions from intel: ${intelSugAdded} | Standing suggestions: ${standingAdded} | Elapsed: ${elapsed}s`;
+    const totalSuggestions = intelResult.added + standingResult.added;
+    const totalLinear = standingResult.linearCreated + intelResult.linearCreated;
+    const summary = `Intel refresh: ${newItems.length} new signals, ${totalSuggestions} suggestions, ${totalLinear} Linear issues (${elapsed}s)`;
+    const details = `Queries: ${queriesRun} | New intel: ${newItems.length} | Skipped dupes: ${skipped} | Suggestions from intel: ${intelResult.added} | Standing suggestions: ${standingResult.added} | Linear issues: ${totalLinear} | Elapsed: ${elapsed}s`;
     db.prepare(`INSERT INTO activity_log (id, timestamp, agent_label, action_type, summary, details, links) VALUES (?, ?, 'intel-cron', 'intel', ?, ?, '[]')`)
       .run(uuid(), Date.now(), summary, details);
   } catch (e) { /* non-fatal */ }
