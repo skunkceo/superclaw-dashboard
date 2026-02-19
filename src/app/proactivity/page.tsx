@@ -338,92 +338,6 @@ function SuggestionCard({
   );
 }
 
-function OvernightPanel({ overnight, onAction, onRefreshOvernightState }: {
-  overnight: OvernightState;
-  onAction: (action: 'start' | 'stop') => Promise<void>;
-  onRefreshOvernightState: () => void;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleAction = async (action: 'start' | 'stop') => {
-    setLoading(true);
-    setError('');
-    try {
-      await onAction(action);
-      onRefreshOvernightState();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isRunning = !!overnight.activeRun;
-
-  return (
-    <div className={`border rounded-xl p-6 ${isRunning ? 'border-orange-500/40 bg-orange-500/5' : 'border-zinc-700 bg-zinc-900/50'}`}>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-base font-semibold text-white flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${isRunning ? 'bg-orange-400 animate-pulse' : 'bg-zinc-600'}`} />
-            Overnight Mode
-          </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">
-            {isRunning
-              ? `Running — ${overnight.activeRun?.tasks_completed || 0} of ${overnight.activeRun?.tasks_started || overnight.queuedCount} tasks complete`
-              : `${overnight.queuedCount} task${overnight.queuedCount !== 1 ? 's' : ''} queued`}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {overnight.lastRun && !isRunning && (
-            <div className="text-right hidden sm:block">
-              <div className="text-xs text-zinc-500">Last run</div>
-              <div className="text-xs text-zinc-400">{timeAgo(overnight.lastRun.started_at)}</div>
-              <div className="text-xs text-zinc-600">
-                {overnight.lastRun.tasks_completed}/{overnight.lastRun.tasks_started} tasks
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => handleAction(isRunning ? 'stop' : 'start')}
-            disabled={loading || (!isRunning && overnight.queuedCount === 0)}
-            className={`px-5 py-2.5 rounded-xl font-medium text-sm transition-all ${
-              isRunning
-                ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20'
-                : overnight.queuedCount > 0
-                ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 shadow-lg shadow-orange-500/20'
-                : 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700'
-            }`}
-          >
-            {loading ? 'Working...' : isRunning ? 'Stop Run' : 'Start Overnight Run'}
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-2">
-          {error}
-        </div>
-      )}
-
-      {!isRunning && overnight.queuedCount === 0 && (
-        <div className="text-xs text-zinc-600 mt-2">
-          Approve suggestions above and move them to the overnight queue to enable this.
-        </div>
-      )}
-
-      {overnight.lastRun?.summary && (
-        <div className="mt-4 pt-4 border-t border-zinc-800">
-          <div className="text-xs text-zinc-600 font-medium mb-1">Last run summary</div>
-          <div className="text-xs text-zinc-400">{overnight.lastRun.summary}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ProactivityPage() {
@@ -605,13 +519,45 @@ export default function ProactivityPage() {
                 Market intelligence, suggestions, and overnight autonomous work
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <button
                 onClick={() => router.push('/reports')}
                 className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium transition-colors border border-zinc-700"
               >
                 View Reports
               </button>
+
+              {/* Overnight inline control */}
+              {overnight && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    overnight.activeRun
+                      ? 'bg-green-400 animate-pulse'
+                      : overnight.queuedCount > 0
+                      ? 'bg-orange-400'
+                      : 'bg-zinc-600'
+                  }`} />
+                  <span className="text-sm text-zinc-400">
+                    {overnight.activeRun
+                      ? `Running \u2014 ${overnight.activeRun.tasks_completed ?? 0}/${overnight.activeRun.tasks_started ?? overnight.queuedCount} tasks`
+                      : `${overnight.queuedCount} queued`}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await handleOvernightAction(overnight.activeRun ? 'stop' : 'start');
+                        const r = await fetch('/api/overnight');
+                        if (r.ok) setOvernight(await r.json());
+                      } catch { /* ignore */ }
+                    }}
+                    disabled={!overnight.activeRun && overnight.queuedCount === 0}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-md bg-orange-500/15 text-orange-400 hover:bg-orange-500/25 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-orange-500/20"
+                  >
+                    {overnight.activeRun ? 'Stop' : 'Start'}
+                  </button>
+                </div>
+              )}
+
               <button
                 onClick={handleIntelRefresh}
                 disabled={refreshing}
@@ -639,31 +585,13 @@ export default function ProactivityPage() {
           <StatCard label="Completed" value={suggestionStats.completed} />
         </div>
 
-        {/* Control Row: Overnight Mode + Scheduled Jobs */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Overnight Mode */}
-          <div className="lg:col-span-1">
-            {overnight ? (
-              <OvernightPanel
-                overnight={overnight}
-                onAction={handleOvernightAction}
-                onRefreshOvernightState={() => { fetch('/api/overnight').then(r => r.json()).then(setOvernight); }}
-              />
-            ) : (
-              <div className="border border-zinc-700 bg-zinc-900/50 rounded-xl p-6 h-full flex items-center justify-center">
-                <span className="text-zinc-600 text-sm">Loading...</span>
-              </div>
-            )}
+        {/* Scheduled Jobs */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-white">Scheduled Jobs</h2>
+            <span className="text-xs text-zinc-500">{cronJobs.filter(j => j.enabled).length} of {cronJobs.length} active</span>
           </div>
-
-          {/* Scheduled Jobs */}
-          <div className="lg:col-span-2">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-semibold text-white">Scheduled Jobs</h2>
-              <span className="text-xs text-zinc-500">{cronJobs.filter(j => j.enabled).length} of {cronJobs.length} active</span>
-            </div>
-
-            {cronJobs.length === 0 ? (
+          {cronJobs.length === 0 ? (
               <div className="border border-zinc-800 rounded-xl p-6 text-center h-32 flex items-center justify-center">
                 <div className="text-zinc-600 text-sm">No scheduled jobs found</div>
               </div>
@@ -716,7 +644,6 @@ export default function ProactivityPage() {
                 ))}
               </div>
             )}
-          </div>
         </div>
 
         {/* Main Grid */}
