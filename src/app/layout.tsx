@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthWrapper } from "@/components/AuthWrapper";
 import { ConditionalHeader } from "@/components/ConditionalHeader";
+import { ChatPageContextProvider } from "@/lib/chat-context";
+import ChatBubbleWrapper from "@/components/ChatBubbleWrapper";
 
 export const metadata: Metadata = {
   title: "SuperClaw Dashboard",
@@ -23,10 +25,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <AuthWrapper>
-          <ConditionalHeader />
-          {children}
-        </AuthWrapper>
+        <ChatPageContextProvider>
+          <AuthWrapper>
+            <ConditionalHeader />
+            {children}
+            <ChatBubbleWrapper />
+          </AuthWrapper>
+        </ChatPageContextProvider>
       </body>
     </html>
   );

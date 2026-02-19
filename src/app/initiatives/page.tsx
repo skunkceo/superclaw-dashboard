@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/components/AuthWrapper';
 import { useRouter } from 'next/navigation';
+import { useChatContext } from '@/lib/chat-context';
 
 interface Issue {
   identifier: string;
@@ -204,6 +205,7 @@ function InitiativeCard({ initiative }: { initiative: Initiative }) {
 export default function InitiativesPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { setPageContext } = useChatContext();
   const [initiatives, setInitiatives] = useState<Initiative[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -229,6 +231,11 @@ export default function InitiativesPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Update chat context when initiatives change
+  useEffect(() => {
+    setPageContext({ page: 'initiatives', data: { initiatives } });
+  }, [initiatives, setPageContext]);
 
   if (!user) {
     router.push('/login');
