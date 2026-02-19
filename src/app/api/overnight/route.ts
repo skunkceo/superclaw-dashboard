@@ -20,7 +20,7 @@ export async function GET() {
   const endTime = getProactivitySetting('overnight_end_time') || '06:00';
   const activeRun = getActiveOvernightRun();
   const lastRun = getLatestOvernightRun();
-  const queuedCount = getAllSuggestions({ status: 'approved' }).length;
+  const queuedCount = getAllSuggestions({ status: 'queued' }).length;
 
   return NextResponse.json({
     enabled,
@@ -51,9 +51,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Overnight run already active', run: active }, { status: 409 });
       }
 
-      const queuedTasks = getAllSuggestions({ status: 'approved' });
+      const queuedTasks = getAllSuggestions({ status: 'queued' });
       if (queuedTasks.length === 0) {
-        return NextResponse.json({ error: 'No approved tasks in queue. Approve some suggestions first.' }, { status: 400 });
+        return NextResponse.json({ error: 'No queued tasks. Move suggestions to the overnight queue first.' }, { status: 400 });
       }
 
       const runId = uuidv4();
