@@ -444,6 +444,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_suggestions_created ON suggestions(created_at);
 `);
 
+// Linear integration columns migration
+try {
+  db.exec(`ALTER TABLE suggestions ADD COLUMN linear_issue_id TEXT`);
+} catch { /* Column exists */ }
+try {
+  db.exec(`ALTER TABLE suggestions ADD COLUMN linear_identifier TEXT`);
+} catch { /* Column exists */ }
+try {
+  db.exec(`ALTER TABLE suggestions ADD COLUMN linear_url TEXT`);
+} catch { /* Column exists */ }
+
 // Overnight runs table
 db.exec(`
   CREATE TABLE IF NOT EXISTS overnight_runs (
@@ -574,6 +585,9 @@ export interface Suggestion {
   actioned_at: number | null;
   notes: string | null;
   report_id: string | null;
+  linear_issue_id: string | null;
+  linear_identifier: string | null;
+  linear_url: string | null;
 }
 
 export function getAllSuggestions(filters?: { status?: string; limit?: number }): Suggestion[] {
@@ -622,6 +636,23 @@ export function updateSuggestion(id: string, updates: Partial<Omit<Suggestion, '
 
 export function deleteSuggestion(id: string): void {
   db.prepare('DELETE FROM suggestions WHERE id = ?').run(id);
+}
+
+export function getIntelItemById(id: string): IntelItem | undefined {
+  return db.prepare('SELECT * FROM intel_items WHERE id = ?').get(id) as IntelItem | undefined;
+}
+
+export function deleteIntelItem(id: string): void {
+  db.prepare('DELETE FROM intel_items WHERE id = ?').run(id);
+}
+
+export function getSuggestionsWithoutLinear(): Suggestion[] {
+  return db.prepare("SELECT * FROM suggestions WHERE linear_issue_id IS NULL AND status NOT IN ('dismissed', 'completed') ORDER BY priority ASC, impact_score DESC").all() as Suggestion[];
+}
+
+export function updateSuggestionLinear(id: string, linearIssueId: string, linearIdentifier: string, linearUrl: string): void {
+  db.prepare('UPDATE suggestions SET linear_issue_id = ?, linear_identifier = ?, linear_url = ? WHERE id = ?')
+    .run(linearIssueId, linearIdentifier, linearUrl, id);
 }
 
 export function getSuggestionStats(): { pending: number; approved: number; queued: number; completed: number; dismissed: number } {

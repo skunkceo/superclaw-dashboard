@@ -217,7 +217,22 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   );
 }
 
-function IntelCard({ item, onRead, onDelete }: { item: IntelItem; onRead: (id: string) => void; onDelete: (id: string) => void }) {
+function IntelCard({ item, onRead, onDelete, onCreateTask }: { item: IntelItem; onRead: (id: string) => void; onDelete: (id: string) => void; onCreateTask: (id: string, title: string) => Promise<{ identifier: string; url: string } | null> }) {
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskTitle, setTaskTitle] = useState(`Task: ${item.title.slice(0, 80)}`);
+  const [creating, setCreating] = useState(false);
+  const [createdTask, setCreatedTask] = useState<{ identifier: string; url: string } | null>(null);
+
+  const handleCreateTask = async () => {
+    setCreating(true);
+    const result = await onCreateTask(item.id, taskTitle);
+    if (result) {
+      setCreatedTask(result);
+      setShowTaskForm(false);
+    }
+    setCreating(false);
+  };
+
   return (
     <div className={`border rounded-xl p-4 transition-all ${item.read_at ? 'border-zinc-800 opacity-70' : 'border-zinc-700 bg-zinc-900/50'}`}>
       <div className="flex items-start justify-between gap-3">
@@ -228,6 +243,16 @@ function IntelCard({ item, onRead, onDelete }: { item: IntelItem; onRead: (id: s
             </span>
             <span className="text-xs text-zinc-600">{item.relevance_score}% relevant</span>
             {!item.read_at && <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />}
+            {createdTask && (
+              <a
+                href={createdTask.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/30 font-medium hover:bg-orange-500/25 transition-colors"
+              >
+                {createdTask.identifier}
+              </a>
+            )}
           </div>
           <h3 className="text-sm font-medium text-white leading-snug mb-1">
             {item.url ? (
@@ -238,6 +263,44 @@ function IntelCard({ item, onRead, onDelete }: { item: IntelItem; onRead: (id: s
           </h3>
           <p className="text-xs text-zinc-500 leading-relaxed">{item.summary}</p>
           <div className="text-xs text-zinc-700 mt-2">{timeAgo(item.created_at)}</div>
+
+          {/* Task creation actions */}
+          {!createdTask && (
+            <div className="flex gap-2 mt-3 pt-3 border-t border-zinc-800">
+              {!showTaskForm ? (
+                <button
+                  onClick={() => setShowTaskForm(true)}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/20 transition-colors"
+                >
+                  Create Task
+                </button>
+              ) : (
+                <div className="flex-1 flex gap-2">
+                  <input
+                    type="text"
+                    value={taskTitle}
+                    onChange={e => setTaskTitle(e.target.value)}
+                    className="flex-1 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-xs focus:ring-1 focus:ring-orange-500 focus:outline-none"
+                    placeholder="Task title..."
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleCreateTask}
+                    disabled={creating || !taskTitle.trim()}
+                    className="px-2.5 py-1 text-xs font-medium rounded-lg bg-orange-500/15 text-orange-400 hover:bg-orange-500/25 border border-orange-500/20 disabled:opacity-50 transition-colors"
+                  >
+                    {creating ? '...' : 'Create'}
+                  </button>
+                  <button
+                    onClick={() => setShowTaskForm(false)}
+                    className="px-2 py-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-1 flex-shrink-0">
           {!item.read_at && (
@@ -414,6 +477,28 @@ export default function ProactivityPage() {
   const handleIntelDelete = async (id: string) => {
     await fetch(`/api/intel/${id}`, { method: 'DELETE' });
     setIntel(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleCreateTaskFromIntel = async (intelId: string, title: string): Promise<{ identifier: string; url: string } | null> => {
+    try {
+      const res = await fetch(`/api/intel/${intelId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_task', title }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      // Refresh suggestions to pick up the new one
+      const sugRes = await fetch('/api/suggestions');
+      if (sugRes.ok) {
+        const sugData = await sugRes.json();
+        setSuggestions(sugData.suggestions || []);
+        setSuggestionStats(sugData.stats || null);
+      }
+      return data.linear_issue ? { identifier: data.linear_issue.identifier, url: data.linear_issue.url } : null;
+    } catch {
+      return null;
+    }
   };
 
   const handleMarkAllRead = async () => {
@@ -748,7 +833,7 @@ export default function ProactivityPage() {
                 </div>
               ) : (
                 filteredIntel.map(item => (
-                  <IntelCard key={item.id} item={item} onRead={handleIntelRead} onDelete={handleIntelDelete} />
+                  <IntelCard key={item.id} item={item} onRead={handleIntelRead} onDelete={handleIntelDelete} onCreateTask={handleCreateTaskFromIntel} />
                 ))
               )}
             </div>
