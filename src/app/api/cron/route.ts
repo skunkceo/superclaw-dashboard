@@ -173,3 +173,56 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update job' }, { status: 500 });
   }
 }
+
+// PATCH — update job name, description (prompt), model, and/or enabled
+export async function PATCH(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  let body: { jobId?: string; name?: string; description?: string; model?: string; enabled?: boolean } = {};
+  try { body = await request.json(); } catch { /* ignore */ }
+
+  const { jobId, name, description, model, enabled } = body;
+  if (!jobId) {
+    return NextResponse.json({ error: 'jobId is required' }, { status: 400 });
+  }
+
+  const cronPath = getCronFilePath();
+  if (!cronPath) return NextResponse.json({ error: 'Cron file not found' }, { status: 404 });
+
+  try {
+    const raw = JSON.parse(readFileSync(cronPath, 'utf8'));
+    const jobs: any[] = raw.jobs || [];
+    const idx = jobs.findIndex((j: any) => (j.id || j.jobId) === jobId);
+    if (idx === -1) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+
+    const job = { ...jobs[idx], updatedAtMs: Date.now() };
+
+    if (name !== undefined) job.name = name;
+    if (enabled !== undefined) job.enabled = enabled;
+
+    // Description maps to payload.message (agentTurn) or payload.text (systemEvent)
+    if (description !== undefined) {
+      if (!job.payload) job.payload = {};
+      if (job.payload.kind === 'systemEvent') {
+        job.payload = { ...job.payload, text: description };
+      } else {
+        job.payload = { ...job.payload, message: description };
+      }
+    }
+
+    // Model maps to payload.model
+    if (model !== undefined) {
+      if (!job.payload) job.payload = {};
+      job.payload = { ...job.payload, model: model || undefined };
+    }
+
+    jobs[idx] = job;
+    writeFileSync(cronPath, JSON.stringify({ ...raw, jobs }, null, 2));
+
+    return NextResponse.json({ success: true, job: mapJob(job) });
+  } catch (err) {
+    console.error('Cron update error:', err);
+    return NextResponse.json({ error: 'Failed to update job' }, { status: 500 });
+  }
+}
