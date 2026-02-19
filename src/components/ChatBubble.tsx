@@ -210,7 +210,7 @@ export default function ChatBubble() {
             <button
               onClick={sendMessage}
               disabled={!input.trim() || isLoading}
-              className="bg-[#E50914] hover:bg-[#c40812] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+              className="bg-[#E50914] hover:bg-[#c40812] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 text-base font-medium transition-colors"
             >
               Send
             </button>
