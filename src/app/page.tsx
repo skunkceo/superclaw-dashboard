@@ -195,15 +195,75 @@ export default function Dashboard() {
 
   if (!data) return null;
 
+  // Workspace quick-link files (from launchpad API or hardcoded)
+  const workspaceQuickLinks = [
+    { label: 'SOUL.md', href: '/workspace?file=SOUL.md', icon: '🧠' },
+    { label: 'MEMORY.md', href: '/memory', icon: '💾' },
+    { label: 'TOOLS.md', href: '/workspace?file=TOOLS.md', icon: '🔧' },
+    { label: 'HEARTBEAT.md', href: '/workspace?file=HEARTBEAT.md', icon: '💓' },
+  ];
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Top Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <HealthCard health={data.health} />
-          <TokenUsage tokens={data.tokens} subscription={data.subscription} />
+
+        {/* Compact Status Strip */}
+        <div className="flex flex-wrap items-center gap-3 mb-6 p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
+          {/* Health indicator */}
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              data.health.status === 'healthy' ? 'bg-green-400' :
+              data.health.status === 'degraded' ? 'bg-yellow-400' : 'bg-red-400'
+            }`} />
+            <span className="text-sm text-zinc-300 font-medium capitalize">{data.health.status}</span>
+          </div>
+          <div className="w-px h-4 bg-zinc-700 hidden sm:block" />
+          {/* Model */}
+          <span className="text-xs text-zinc-500 font-mono">{data.health.defaultModel || 'claude-sonnet'}</span>
+          <div className="w-px h-4 bg-zinc-700 hidden sm:block" />
+          {/* Uptime */}
+          <span className="text-xs text-zinc-500">Up {data.health.uptime}</span>
+          <div className="w-px h-4 bg-zinc-700 hidden sm:block" />
+          {/* Token usage */}
+          <span className="text-xs text-zinc-500">{(data.tokens.today / 1000).toFixed(0)}k tokens today</span>
+          {data.subscription && (
+            <>
+              <div className="w-px h-4 bg-zinc-700 hidden sm:block" />
+              <span className="text-xs text-zinc-600 capitalize">{data.subscription.plan}</span>
+            </>
+          )}
+          {/* Launchpad CTA */}
+          <div className="ml-auto">
+            <a href="/launchpad" className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-lg text-xs font-medium hover:bg-orange-500/20 transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Launchpad
+            </a>
+          </div>
+        </div>
+
+        {/* Workspace Quick Links */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {workspaceQuickLinks.map(link => (
+            <a
+              key={link.label}
+              href={link.href}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors font-mono"
+            >
+              {link.label}
+            </a>
+          ))}
+          <a
+            href="/workspace"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            All files
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
         </div>
 
         {/* Agent Sessions */}

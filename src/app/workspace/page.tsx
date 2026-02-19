@@ -32,11 +32,13 @@ export default function WorkspacePage() {
   const [agentId, setAgentId] = useState<string | null>(null);
   const [agentName, setAgentName] = useState<string>('');
 
-  // Get agent ID from URL params
+  // Get agent ID and file from URL params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const agent = params.get('agent');
+    const file = params.get('file');
     setAgentId(agent);
+    if (file) setSelectedFile(file);
   }, []);
 
   // Load workspace file list
@@ -50,11 +52,12 @@ export default function WorkspacePage() {
         setWorkspaceData(data);
         if (data.agentName) setAgentName(data.agentName);
         
-        // Auto-select first existing file
-        const firstExistingFile = data.files.find((f: WorkspaceFile) => f.exists);
-        if (firstExistingFile) {
-          setSelectedFile(firstExistingFile.name);
-        }
+        // Auto-select first existing file (unless ?file= param already set a specific one)
+        setSelectedFile(prev => {
+          if (prev) return prev; // already set via URL param
+          const firstExistingFile = data.files.find((f: WorkspaceFile) => f.exists);
+          return firstExistingFile ? firstExistingFile.name : null;
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
