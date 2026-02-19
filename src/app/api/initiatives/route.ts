@@ -16,15 +16,14 @@ const QUERY = `{
           id
           name
           url
-          state { name }
-          issues(first: 5, orderBy: updatedAt) {
+          state
+          issues(first: 3) {
             nodes {
               identifier
               title
               url
               state { name }
               priority
-              updatedAt
             }
           }
         }
