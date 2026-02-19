@@ -224,9 +224,6 @@ export default function Dashboard() {
           <div className="w-px h-4 bg-zinc-700 hidden sm:block" />
           {/* Uptime */}
           <span className="text-xs text-zinc-500">Up {data.health.uptime}</span>
-          <div className="w-px h-4 bg-zinc-700 hidden sm:block" />
-          {/* Token usage */}
-          <span className="text-xs text-zinc-500">{(data.tokens.today / 1000).toFixed(0)}k tokens today</span>
           {data.subscription && (
             <>
               <div className="w-px h-4 bg-zinc-700 hidden sm:block" />
@@ -264,6 +261,11 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </a>
+        </div>
+
+        {/* Token Usage */}
+        <div className="mb-6 sm:mb-8">
+          <TokenUsage tokens={data.tokens} subscription={data.subscription} />
         </div>
 
         {/* Agent Sessions */}
