@@ -119,19 +119,19 @@ function ActivityItem({ entry }: { entry: ActivityEntry }) {
           </span>
         </div>
 
-        <p className="text-sm text-zinc-200 leading-snug">{entry.summary}</p>
+        <p className="text-base text-zinc-200 leading-snug">{entry.summary}</p>
 
         {entry.details && (
           <button
             onClick={() => setExpanded(e => !e)}
-            className="text-xs text-zinc-600 hover:text-zinc-400 mt-1 transition-colors"
+            className="text-sm text-zinc-600 hover:text-zinc-400 mt-1 transition-colors"
           >
             {expanded ? '↑ hide details' : '↓ show details'}
           </button>
         )}
 
         {expanded && entry.details && (
-          <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed whitespace-pre-wrap border-l border-zinc-800 pl-3">
+          <p className="text-sm text-zinc-500 mt-1.5 leading-relaxed whitespace-pre-wrap border-l border-zinc-800 pl-3">
             {entry.details}
           </p>
         )}
@@ -144,7 +144,7 @@ function ActivityItem({ entry }: { entry: ActivityEntry }) {
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition-colors"
+                className="text-sm px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition-colors"
               >
                 {link.label} ↗
               </a>
@@ -171,7 +171,7 @@ function DateSeparator({ ts }: { ts: number }) {
   return (
     <div className="flex items-center gap-3 py-2">
       <div className="flex-1 h-px bg-zinc-800" />
-      <span className="text-xs text-zinc-600 font-medium">{label}</span>
+      <span className="text-sm text-zinc-600 font-medium">{label}</span>
       <div className="flex-1 h-px bg-zinc-800" />
     </div>
   );
@@ -254,8 +254,8 @@ export default function ReportsPage() {
         {/* Header */}
         <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Activity</h1>
-            <p className="text-sm text-zinc-500 mt-1">
+            <h1 className="text-3xl font-bold text-white">Activity</h1>
+            <p className="text-base text-zinc-500 mt-1">
               Everything Clawd and sub-agents have been doing
             </p>
           </div>
@@ -273,7 +273,7 @@ export default function ReportsPage() {
         <div className="flex gap-1 mb-6 border-b border-zinc-800">
           <button
             onClick={() => setTab('activity')}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-4 py-3 text-base font-medium transition-colors border-b-2 -mb-px ${
               tab === 'activity'
                 ? 'text-white border-orange-500'
                 : 'text-zinc-500 border-transparent hover:text-zinc-300'
@@ -281,12 +281,12 @@ export default function ReportsPage() {
           >
             Activity log
             {entries.length > 0 && (
-              <span className="ml-2 text-xs text-zinc-600">{entries.length}</span>
+              <span className="ml-2 text-sm text-zinc-600">{entries.length}</span>
             )}
           </button>
           <button
             onClick={() => setTab('reports')}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-4 py-3 text-base font-medium transition-colors border-b-2 -mb-px ${
               tab === 'reports'
                 ? 'text-white border-orange-500'
                 : 'text-zinc-500 border-transparent hover:text-zinc-300'
@@ -294,7 +294,7 @@ export default function ReportsPage() {
           >
             Reports
             {reports.length > 0 && (
-              <span className="ml-2 text-xs text-zinc-600">{reports.length}</span>
+              <span className="ml-2 text-sm text-zinc-600">{reports.length}</span>
             )}
           </button>
         </div>
@@ -309,7 +309,7 @@ export default function ReportsPage() {
                   <div className="flex gap-1.5 flex-wrap">
                     <button
                       onClick={() => setAgentFilter('all')}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${agentFilter === 'all' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${agentFilter === 'all' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
                       All agents
                     </button>
@@ -317,7 +317,7 @@ export default function ReportsPage() {
                       <button
                         key={a}
                         onClick={() => setAgentFilter(a)}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${agentFilter === a ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${agentFilter === a ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                       >
                         {a}
                       </button>
@@ -332,8 +332,8 @@ export default function ReportsPage() {
               <div className="text-center py-16 text-zinc-600 text-sm">Loading activity...</div>
             ) : entries.length === 0 ? (
               <div className="border border-zinc-800 rounded-xl p-16 text-center">
-                <div className="text-zinc-600 text-sm mb-2">No activity yet</div>
-                <p className="text-xs text-zinc-700">
+                <div className="text-zinc-600 text-base mb-2">No activity yet</div>
+                <p className="text-sm text-zinc-700">
                   Activity is logged as Clawd and sub-agents work. Check back after the next task.
                 </p>
               </div>
@@ -361,7 +361,7 @@ export default function ReportsPage() {
               <div className="flex gap-2 mb-6 flex-wrap">
                 <button
                   onClick={() => setReportTypeFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${reportTypeFilter === 'all' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`px-3 py-1.5 rounded-lg text-base font-medium transition-colors ${reportTypeFilter === 'all' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   All ({reports.length})
                 </button>
@@ -369,7 +369,7 @@ export default function ReportsPage() {
                   <button
                     key={type}
                     onClick={() => setReportTypeFilter(type)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${reportTypeFilter === type ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    className={`px-3 py-1.5 rounded-lg text-base font-medium transition-colors ${reportTypeFilter === type ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                   >
                     {REPORT_TYPE_LABELS[type] || type} ({reports.filter(r => r.type === type).length})
                   </button>
@@ -381,8 +381,8 @@ export default function ReportsPage() {
               <div className="text-center py-16 text-zinc-600 text-sm">Loading reports...</div>
             ) : filteredReports.length === 0 ? (
               <div className="border border-zinc-800 rounded-xl p-16 text-center">
-                <div className="text-zinc-600 text-sm mb-2">No reports yet</div>
-                <p className="text-xs text-zinc-700">
+                <div className="text-zinc-600 text-base mb-2">No reports yet</div>
+                <p className="text-sm text-zinc-700">
                   Reports are generated when Clawd completes overnight tasks or research runs.
                 </p>
               </div>
@@ -400,10 +400,10 @@ export default function ReportsPage() {
                       </span>
                       <span className="text-xs text-zinc-600">{timeAgo(report.created_at)}</span>
                     </div>
-                    <h3 className="text-sm font-semibold text-white group-hover:text-orange-400 transition-colors leading-snug mb-2">
+                    <h3 className="text-base font-semibold text-white group-hover:text-orange-400 transition-colors leading-snug mb-2">
                       {report.title}
                     </h3>
-                    <div className="text-xs text-zinc-600">{formatDate(report.created_at)}</div>
+                    <div className="text-sm text-zinc-600">{formatDate(report.created_at)}</div>
                   </Link>
                 ))}
               </div>
