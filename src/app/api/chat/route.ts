@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
       db2.close();
 
       return NextResponse.json({
-        reply: response.reply,
+        message: response.message || response.reply,
+        reply: response.message || response.reply,
         sessionId: actualSessionId,
         messageId: response.messageId,
       });
