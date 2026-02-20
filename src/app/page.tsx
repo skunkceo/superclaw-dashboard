@@ -5,6 +5,11 @@ import { TokenUsage } from '@/components/TokenUsage';
 import { LobsterLogo } from '@/components/LobsterLogo';
 import { ProactivityBanner } from '@/components/ProactivityBanner';
 import Link from 'next/link';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay, DragStartEvent, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useDashboardLayout } from '@/hooks/useDashboardLayout';
+import { WIDGET_REGISTRY, WidgetLayout } from '@/lib/dashboard-layout';
 
 interface ModelUsage { input: number; output: number; cost: number; }
 
@@ -29,7 +34,7 @@ function labelToPortrait(label: string): string {
   for (let i = 0; i < label.length; i++) h = Math.imul(31, h) + label.charCodeAt(i) | 0;
   const abs = Math.abs(h);
   const gender = abs % 2 === 0 ? 'men' : 'women';
-  const idx = abs % 70; // randomuser has 0-99 but 70 is safe range
+  const idx = abs % 70;
   return `https://randomuser.me/api/portraits/thumb/${gender}/${idx}.jpg`;
 }
 
@@ -118,11 +123,75 @@ function CompactSkills({ skills }: { skills: Array<{name:string;enabled:boolean;
   );
 }
 
+function GripIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/>
+      <circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/>
+    </svg>
+  );
+}
+
+interface SortableWidgetProps {
+  widget: WidgetLayout;
+  editMode: boolean;
+  onRemove: () => void;
+  children: React.ReactNode;
+}
+
+function SortableWidget({ widget, editMode, onRemove, children }: SortableWidgetProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative ${widget.size === 'full' ? 'lg:col-span-2' : ''} ${isDragging ? 'opacity-50' : ''}`}
+    >
+      {editMode && (
+        <div className="absolute inset-0 bg-zinc-900/10 border-2 border-orange-500/30 rounded-xl z-10 pointer-events-none" />
+      )}
+      {editMode && (
+        <>
+          <button
+            {...attributes}
+            {...listeners}
+            className="absolute top-2 left-2 w-6 h-6 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded flex items-center justify-center z-20 cursor-grab active:cursor-grabbing text-zinc-400 hover:text-zinc-200 transition-colors"
+            aria-label="Drag to reorder"
+          >
+            <GripIcon className="w-3 h-3" />
+          </button>
+          <button
+            onClick={onRemove}
+            className="absolute top-2 right-2 w-6 h-6 bg-zinc-800 hover:bg-red-900/50 border border-zinc-700 hover:border-red-500/50 rounded flex items-center justify-center z-20 text-zinc-400 hover:text-red-400 transition-colors"
+            aria-label="Remove widget"
+          >
+            ×
+          </button>
+        </>
+      )}
+      {children}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData|null>(null);
   const [agentData, setAgentData] = useState<AgentData|null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string|null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [showAddPanel, setShowAddPanel] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const { layout, mounted, editMode, setEditMode, reorderWidgets, toggleWidget, reset } = useDashboardLayout();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -136,42 +205,196 @@ export default function Dashboard() {
     fetchData(); const interval=setInterval(fetchData,10000); return ()=>clearInterval(interval);
   }, []);
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      reorderWidgets(active.id as string, over.id as string);
+    }
+    setActiveId(null);
+  };
+
+  const enabledWidgets = layout.filter(w => w.enabled).sort((a, b) => a.order - b.order);
+  const disabledWidgets = layout.filter(w => !w.enabled);
+
   if (loading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center"><div className="flex flex-col items-center gap-4"><LobsterLogo className="w-16 h-16 animate-pulse"/><div className="text-white text-xl">Loading...</div></div></div>;
   if (error||!data) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center"><div className="text-red-400 text-xl">{error||'No data'}</div></div>;
+
+  const renderWidget = (widgetId: string) => {
+    switch (widgetId) {
+      case 'health':
+        return (
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
+            <div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full flex-shrink-0 ${data.health.status==='healthy'?'bg-green-400':data.health.status==='degraded'?'bg-yellow-400':'bg-red-400'}`}/><span className="text-sm text-zinc-300 font-medium capitalize">{data.health.status}</span></div>
+            <div className="w-px h-4 bg-zinc-700 hidden sm:block"/>
+            <span className="text-xs text-zinc-500 font-mono">{data.health.defaultModel||'claude-sonnet'}</span>
+            <div className="w-px h-4 bg-zinc-700 hidden sm:block"/>
+            <span className="text-xs text-zinc-500">Up {data.health.uptime}</span>
+            {data.subscription&&<><div className="w-px h-4 bg-zinc-700 hidden sm:block"/><span className="text-xs text-zinc-600 capitalize">{data.subscription.plan}</span></>}
+            <div className="ml-auto flex items-center gap-2">
+              {!editMode && (
+                <button
+                  onClick={() => setEditMode(true)}
+                  className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  Customise
+                </button>
+              )}
+              <Link href="/launchpad" className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-lg text-xs font-medium hover:bg-orange-500/20 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Launchpad</Link>
+            </div>
+          </div>
+        );
+      case 'files':
+        return (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              {(['SOUL.md','MEMORY.md','TOOLS.md','HEARTBEAT.md'] as const).map(file=>(
+                <Link key={file} href={file==='MEMORY.md'?'/memory':`/workspace?file=${file}`} className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors font-mono">{file}</Link>
+              ))}
+              <Link href="/workspace" className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">All files →</Link>
+            </div>
+            <AgentAvatarRow agentData={agentData}/>
+          </div>
+        );
+      case 'proactivity':
+        return <ProactivityBanner />;
+      case 'token-usage':
+        return <TokenUsage tokens={data.tokens} subscription={data.subscription}/>;
+      case 'work-log':
+        return <WorkLog/>;
+      case 'skills':
+        return <CompactSkills skills={data.skills}/>;
+      default:
+        return null;
+    }
+  };
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 sm:space-y-6">
+        
+        {editMode && (
+          <div className="bg-zinc-900 border border-orange-500/30 rounded-xl p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAddPanel(!showAddPanel)}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
+                >
+                  {showAddPanel ? 'Close' : 'Add widget'}
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs font-medium text-zinc-400 transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+              <button
+                onClick={() => {
+                  setEditMode(false);
+                  setShowAddPanel(false);
+                  setShowResetConfirm(false);
+                }}
+                className="px-4 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-lg text-xs font-medium text-orange-400 transition-colors"
+              >
+                Done
+              </button>
+            </div>
 
-        <div className="flex flex-wrap items-center gap-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
-          <div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full flex-shrink-0 ${data.health.status==='healthy'?'bg-green-400':data.health.status==='degraded'?'bg-yellow-400':'bg-red-400'}`}/><span className="text-sm text-zinc-300 font-medium capitalize">{data.health.status}</span></div>
-          <div className="w-px h-4 bg-zinc-700 hidden sm:block"/>
-          <span className="text-xs text-zinc-500 font-mono">{data.health.defaultModel||'claude-sonnet'}</span>
-          <div className="w-px h-4 bg-zinc-700 hidden sm:block"/>
-          <span className="text-xs text-zinc-500">Up {data.health.uptime}</span>
-          {data.subscription&&<><div className="w-px h-4 bg-zinc-700 hidden sm:block"/><span className="text-xs text-zinc-600 capitalize">{data.subscription.plan}</span></>}
-          <div className="ml-auto"><Link href="/launchpad" className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-lg text-xs font-medium hover:bg-orange-500/20 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Launchpad</Link></div>
-        </div>
+            {showAddPanel && disabledWidgets.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-zinc-800 space-y-2">
+                <p className="text-xs text-zinc-500 mb-2">Add widgets:</p>
+                {disabledWidgets.map(w => {
+                  const def = WIDGET_REGISTRY.find(d => d.id === w.id);
+                  if (!def) return null;
+                  return (
+                    <button
+                      key={w.id}
+                      onClick={() => toggleWidget(w.id, true)}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-lg text-left transition-colors group"
+                    >
+                      <div>
+                        <div className="text-sm text-zinc-300 font-medium">{def.name}</div>
+                        <div className="text-xs text-zinc-500">{def.description}</div>
+                      </div>
+                      <span className="text-orange-400 text-lg group-hover:scale-110 transition-transform">+</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
-            {(['SOUL.md','MEMORY.md','TOOLS.md','HEARTBEAT.md'] as const).map(file=>(
-              <Link key={file} href={file==='MEMORY.md'?'/memory':`/workspace?file=${file}`} className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors font-mono">{file}</Link>
-            ))}
-            <Link href="/workspace" className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">All files →</Link>
+            {showResetConfirm && (
+              <div className="mt-3 pt-3 border-t border-zinc-800 flex items-center justify-between gap-3 bg-zinc-800/50 p-3 rounded-lg">
+                <span className="text-sm text-zinc-300">Reset to default layout?</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      reset();
+                      setShowResetConfirm(false);
+                    }}
+                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-medium text-red-400 transition-colors"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => setShowResetConfirm(false)}
+                    className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 rounded text-xs font-medium text-zinc-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <AgentAvatarRow agentData={agentData}/>
-        </div>
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <ProactivityBanner />
-          <TokenUsage tokens={data.tokens} subscription={data.subscription}/>
-        </div>
+        {!mounted ? (
+          <div className="space-y-4">
+            <div className="h-12 bg-zinc-900 rounded-xl animate-pulse" />
+            <div className="h-12 bg-zinc-900 rounded-xl animate-pulse" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="h-32 bg-zinc-900 rounded-xl animate-pulse" />
+              <div className="h-32 bg-zinc-900 rounded-xl animate-pulse" />
+            </div>
+          </div>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={enabledWidgets.map(w => w.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-4 sm:space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  {enabledWidgets.map(widget => (
+                    <SortableWidget
+                      key={widget.id}
+                      widget={widget}
+                      editMode={editMode}
+                      onRemove={() => toggleWidget(widget.id, false)}
+                    >
+                      {renderWidget(widget.id)}
+                    </SortableWidget>
+                  ))}
+                </div>
+              </div>
+            </SortableContext>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <WorkLog/>
-          <CompactSkills skills={data.skills}/>
-        </div>
+            <DragOverlay>
+              {activeId ? (
+                <div className="opacity-60">
+                  {renderWidget(activeId)}
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        )}
 
       </div>
     </main>
